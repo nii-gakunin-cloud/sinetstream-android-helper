@@ -1,0 +1,3 @@
+rootProject.name='SINETStreamHelper'
+include ':app'
+include ':libhelper'
