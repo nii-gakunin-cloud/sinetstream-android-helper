@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -37,44 +37,78 @@ public class SensorTypes {
      * [NB] Sensor.TYPE_XXX may be added/obsoleted as the progress of Android SDK.
      */
     public SensorTypes() {
+        /* type=1 */
         mNameMap.put(Sensor.TYPE_ACCELEROMETER, "accelerometer");
-        mNameMap.put(Sensor.TYPE_AMBIENT_TEMPERATURE, "ambient_temperature");
-        mNameMap.put(Sensor.TYPE_GAME_ROTATION_VECTOR, "game_rotation_vector");
-        mNameMap.put(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, "geomagnetic_rotation_vector");
-        mNameMap.put(Sensor.TYPE_GRAVITY, "gravity");
+        /* type=2 */
+        mNameMap.put(Sensor.TYPE_MAGNETIC_FIELD, "magnetic_field");
+        /* type=3 */
+        mNameMap.put(Sensor.TYPE_ORIENTATION, "orientation");
+        /* type=4 */
         mNameMap.put(Sensor.TYPE_GYROSCOPE, "gyroscope");
+        /* type=5 */
+        mNameMap.put(Sensor.TYPE_LIGHT, "light");
+        /* type=6 */
+        mNameMap.put(Sensor.TYPE_PRESSURE, "pressure");
+        /* type=7 */
+        mNameMap.put(Sensor.TYPE_TEMPERATURE, "temperature");
+        /* type=8 */
+        mNameMap.put(Sensor.TYPE_PROXIMITY, "proximity");
+        /* type=9 */
+        mNameMap.put(Sensor.TYPE_GRAVITY, "gravity");
+        /* type=10 */
+        mNameMap.put(Sensor.TYPE_LINEAR_ACCELERATION, "linear_acceleration");
+        /* type=11 */
+        mNameMap.put(Sensor.TYPE_ROTATION_VECTOR, "rotation_vector");
+        /* type=12 */
+        mNameMap.put(Sensor.TYPE_RELATIVE_HUMIDITY, "relative_humidity");
+        /* type=13 */
+        mNameMap.put(Sensor.TYPE_AMBIENT_TEMPERATURE, "ambient_temperature");
+        /* type=14 */
+        mNameMap.put(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, "magnetic_field_uncalibrated");
+        /* type=15 */
+        mNameMap.put(Sensor.TYPE_GAME_ROTATION_VECTOR, "game_rotation_vector");
+        /* type=16 */
         mNameMap.put(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, "gyroscope_uncalibrated");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            mNameMap.put(Sensor.TYPE_HEART_BEAT, "heart_beat");
-        }
+        /* type=17 */
+        mNameMap.put(Sensor.TYPE_SIGNIFICANT_MOTION, "significant_motion");
+        /* type=18 */
+        mNameMap.put(Sensor.TYPE_STEP_DETECTOR, "step_detector");
+        /* type=19 */
+        mNameMap.put(Sensor.TYPE_STEP_COUNTER, "step_counter");
+        /* type=20 */
+        mNameMap.put(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, "geomagnetic_rotation_vector");
+        /* type=21 */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             mNameMap.put(Sensor.TYPE_HEART_RATE, "heart_rate");
         }
-        mNameMap.put(Sensor.TYPE_LIGHT, "light");
-        mNameMap.put(Sensor.TYPE_LINEAR_ACCELERATION, "linear_acceleration");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mNameMap.put(Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT, "low_latency_offbody_detect");
-        }
-        mNameMap.put(Sensor.TYPE_MAGNETIC_FIELD, "magnetic_field");
-        mNameMap.put(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, "magnetic_field_uncalibrated");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            mNameMap.put(Sensor.TYPE_MOTION_DETECT, "motion_detect");
-        }
-        mNameMap.put(Sensor.TYPE_ORIENTATION, "orientation");
+        /* type=28 */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             mNameMap.put(Sensor.TYPE_POSE_6DOF, "pose_6dof");
         }
-        mNameMap.put(Sensor.TYPE_PRESSURE, "pressure");
-        mNameMap.put(Sensor.TYPE_PROXIMITY, "proximity");
-        mNameMap.put(Sensor.TYPE_RELATIVE_HUMIDITY, "relative_humidity");
-        mNameMap.put(Sensor.TYPE_ROTATION_VECTOR, "rotation_vector");
-        mNameMap.put(Sensor.TYPE_SIGNIFICANT_MOTION, "significant_motion");
+        /* type=29 */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             mNameMap.put(Sensor.TYPE_STATIONARY_DETECT, "stationary_detect");
         }
-        mNameMap.put(Sensor.TYPE_STEP_COUNTER, "step_counter");
-        mNameMap.put(Sensor.TYPE_STEP_DETECTOR, "step_detector");
-        mNameMap.put(Sensor.TYPE_TEMPERATURE, "temperature");
+        /* type=30 */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            mNameMap.put(Sensor.TYPE_MOTION_DETECT, "motion_detect");
+        }
+        /* type=31 */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            mNameMap.put(Sensor.TYPE_HEART_BEAT, "heart_beat");
+        }
+        /* type=34 */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mNameMap.put(Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT, "low_latency_offbody_detect");
+        }
+        /* type=35 */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mNameMap.put(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, "accelerometer_uncalibrated");
+        }
+        /* type=36 */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            mNameMap.put(Sensor.TYPE_HINGE_ANGLE, "hinge_angle");
+        }
     }
 
     public String getName(int type) {

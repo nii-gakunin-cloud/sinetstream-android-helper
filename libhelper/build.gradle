@@ -1,28 +1,18 @@
-apply plugin: 'com.android.library'
-apply plugin: 'maven'
-
-/*
- * Set appropriate version X.Y, to be published as a remote library.
- * User application will refer this library in its "app/build.gradle"
- * as follows.
- *
- * dependencies {
- *     implementation 'jp.ad.sinet.stream.android.helper:libhelper:X.Y'
- * }
- *
- * [NB] For convenience, X.Y should be the same as versionName below.
- */
-version '1.4.0'
+plugins {
+  id 'com.android.library'
+  id 'maven-publish'
+  id "com.jfrog.bintray" version "1.8.5"
+}
 
 android {
     compileSdkVersion 30
-    buildToolsVersion '30.0.2'
+    buildToolsVersion '30.0.3'
 
     defaultConfig {
         minSdkVersion 19
         targetSdkVersion 30
-        versionCode 4
-        versionName '1.4.0'
+        versionCode currentCode as Integer
+        versionName currentVersion
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles 'consumer-rules.pro'
@@ -35,6 +25,11 @@ android {
         }
     }
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
     packagingOptions {
         exclude("META-INF/LICENSE*")
     }
@@ -44,17 +39,54 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation 'androidx.appcompat:appcompat:1.2.0'
-    testImplementation 'junit:junit:4.13'
+    testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 }
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            repository(url: 'file:repository')
-            pom.groupId = 'jp.ad.sinet.stream.android.helper'
-            pom.artifactId = 'libhelper'
-        }
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from android.sourceSets.main.java.srcDirs
+}
+
+afterEvaluate {
+  publishing {
+    publications {
+      maven(MavenPublication) {
+        from components.release
+        artifact androidSourcesJar
+        groupId = 'jp.ad.sinet.stream.android.helper'
+        artifactId = 'libhelper'
+        version = currentVersion
+      }
     }
+    repositories {
+      maven {
+        url = System.getenv('MAVEN_ENDPOINT')
+        credentials(HttpHeaderCredentials) {
+          name = "Job-Token"
+          value = System.getenv('CI_JOB_TOKEN')
+        }
+        authentication {
+          header(HttpHeaderAuthentication)
+        }
+      }
+    }
+  }
+
+  bintray {
+    user = project.hasProperty('bintray_user') ? bintray_user : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintray_key') ? bintray_key : System.getenv('BINTRAY_API_KEY')
+    publications = ['maven']
+    pkg {
+      repo = 'maven'
+      name = 'SINETStream-android-helper'
+      licenses = ['Apache-2.0']
+      websiteUrl = 'https://www.sinetstream.net'
+      vcsUrl = 'https://github.com/nii-gakunin-cloud/sinetstream-android-helper.git'
+      version {
+        name = project.version
+      }
+    }
+  }
 }

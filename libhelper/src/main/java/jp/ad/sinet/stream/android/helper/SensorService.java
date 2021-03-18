@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -32,6 +32,8 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.TriggerEvent;
+import android.hardware.TriggerEventListener;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
@@ -57,6 +59,10 @@ import jp.ad.sinet.stream.android.helper.provider.SensorStorage;
 import jp.ad.sinet.stream.android.helper.provider.UserDataStorage;
 import jp.ad.sinet.stream.android.helper.util.DateTimeUtil;
 
+/**
+ * As the back-end element of the SINETStreamHelper library, this class
+ * takes care of {@link Sensor} management via {@link SensorManager}.
+ */
 public class SensorService extends Service
         implements SensorEventListener {
     private final static String TAG = SensorService.class.getSimpleName();
@@ -74,6 +80,9 @@ public class SensorService extends Service
     /* Rate control parameters */
     private long mTimeStamp = 0;
     private long mInterval = sec2ns(1L);
+
+    /* Make sure ALL sensor listener gets unregistered on unbind */
+    private boolean mSensorListenerActive = false;
 
     private final static String NOTIFICATION_CHANNEL_ID = "10001";
 
@@ -105,8 +114,11 @@ public class SensorService extends Service
     /**
      * When binding to the service, we return an interface to out messenger
      * for sending messages to the service.
-     * @param intent
-     * @return
+     * @param intent The Intent that was used to bind to this service,
+     *               as given to {@link Context#bindService
+     *               Context.bindService}.  Note that any extras that were included with
+     *               the Intent at that point will <em>not</em> be seen here.
+     * @return Return {@link IBinder} object used by {@link Messenger}.
      */
     @Override
     public IBinder onBind(Intent intent) {
@@ -131,6 +143,12 @@ public class SensorService extends Service
     public boolean onUnbind(Intent intent) {
         Log.d(TAG, "onUnbind: Intent="
                 + (intent != null ? intent.toString() : ""));
+
+        if (mSensorListenerActive) {
+            Log.w(TAG, "Forcibly disable ALL sensors");
+            ArrayList<Integer> sensorTypes = mSensorStorage.getSensorTypes();
+            disableSensors(sensorTypes);
+        }
         return super.onUnbind(intent);
     }
 
@@ -208,7 +226,39 @@ public class SensorService extends Service
                         "[type(" + sensor.getType() +
                         "),name(" + sensor.getName() + ")]");
 
-                mSensorStorage.registerSensorInfo(sensor.getType(), sensor.getName());
+                if (android.os.Build.VERSION.SDK_INT
+                        >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                    int reportingMode = sensor.getReportingMode();
+                    String modeName = "Unknown";
+                    switch (reportingMode) {
+                        case Sensor.REPORTING_MODE_CONTINUOUS:
+                            modeName = "CONTINUOUS";
+                            break;
+                        case Sensor.REPORTING_MODE_ON_CHANGE:
+                            modeName = "ON_CHANGE";
+                            break;
+                        case Sensor.REPORTING_MODE_ONE_SHOT:
+                            modeName = "ONE_SHOT";
+                            break;
+                        case Sensor.REPORTING_MODE_SPECIAL_TRIGGER:
+                            /* Step detectors, etc. */
+                            modeName = "SPECIAL_TRIGGER";
+                            break;
+                        default:
+                            break;
+                    }
+                    Log.d(TAG, "ReportingMode(" + reportingMode + "): " + modeName);
+                }
+
+                if (sensor.getType() >= Sensor.TYPE_DEVICE_PRIVATE_BASE) {
+                    /* We don't know how to handle this sensor. */
+                    Log.d(TAG, "Skip device private sensor" +
+                            "[type(" + sensor.getType() +
+                            "),name(" + sensor.getName() + ")]");
+                    continue;
+                }
+
+                mSensorStorage.registerSensor(sensor);
             }
         } else {
             Log.w(TAG, "SENSOR_SERVICE unavailable?");
@@ -297,7 +347,7 @@ public class SensorService extends Service
         /**
          * Subclasses must implement this to receive messages.
          *
-         * @param msg
+         * @param msg The {@link Message} object sent from a client.
          */
         @Override
         public void handleMessage(@NonNull Message msg) {
@@ -337,6 +387,10 @@ public class SensorService extends Service
                 } else {
                     errorReply(msg.replyTo, "INTERVAL_TIMER: Bundle data is missing?");
                 }
+                if (result_code != 0) {
+                    /* ErrorReply has sent; avoid calling sendToClient() again */
+                    break;
+                }
 
                 /* Send back process result */
                 sendToClient(msg.replyTo, msg.what, result_code, null);
@@ -358,6 +412,10 @@ public class SensorService extends Service
                 } else {
                     errorReply(msg.replyTo, "LOCATION: Bundle data is missing?");
                 }
+                if (result_code != 0) {
+                    /* ErrorReply has sent; avoid calling sendToClient() again */
+                    break;
+                }
 
                 /* Send back process result */
                 sendToClient(msg.replyTo, msg.what, result_code, null);
@@ -371,15 +429,19 @@ public class SensorService extends Service
                     if (publisher != null) {
                         Log.d(TAG, "Set publisher(" + publisher + ")");
                         mUserDataStorage.setPublisher(publisher);
-                        result_code = 0;
                     }
                     if (note != null) {
                         Log.d(TAG, "Set note(" + note + ")");
                         mUserDataStorage.setNote(note);
-                        result_code = 0;
                     }
+                    /* Allow even if both publisher and note are omitted */
+                    result_code = 0;
                 } else {
                     errorReply(msg.replyTo, "USER_DATA: Bundle data is missing?");
+                }
+                if (result_code != 0) {
+                    /* ErrorReply has sent; avoid calling sendToClient() again */
+                    break;
                 }
 
                 /* Send back process result */
@@ -387,11 +449,16 @@ public class SensorService extends Service
                 break;
             case IpcType.MSG_LIST_SENSOR_TYPES:
                 /* Send back available sensor types */
-                ArrayList<Integer> availableSensorTypes = mSensorStorage.getSensorTypes();
+                ArrayList<Integer> availableSensorTypes =
+                        mSensorStorage.getSensorTypes();
+                ArrayList<String> sensorTypeNames =
+                        mSensorStorage.getSensorTypeNames(availableSensorTypes);
 
                 bundle_rsp = new Bundle();
                 bundle_rsp.putIntegerArrayList(
                         BundleKeys.BUNDLE_KEY_SENSOR_TYPES, availableSensorTypes);
+                bundle_rsp.putStringArrayList(
+                        BundleKeys.BUNDLE_KEY_SENSOR_TYPE_NAMES, sensorTypeNames);
                 result_code = 0;
 
                 sendToClient(msg.replyTo, msg.what, result_code, bundle_rsp);
@@ -430,20 +497,29 @@ public class SensorService extends Service
         for (int i = 0, n = sensorTypes.size(); i < n; i++) {
             int sensorType = sensorTypes.get(i);
 
-            String sensorName = mSensorStorage.getSensorName(sensorType);
-            if (sensorName == null) {
-                Log.w(TAG, "Unsupported sensor type: " + sensorType);
-                continue;
-            }
-
-            Sensor sensor = mSensorManager.getDefaultSensor(sensorType);
+            Sensor sensor = mSensorStorage.lookupSensor(sensorType);
             if (sensor != null) {
-                if (! mSensorManager.registerListener(
-                        this, sensor, SensorManager.SENSOR_DELAY_NORMAL)) {
-                    Log.w(TAG, "Cannot register listener: " + sensor.toString());
+                Log.d(TAG, "XXX: " + "[" + (i+1) + "/" + n + "]" +
+                        "Going to enable: " + sensor.getName());
+
+                if (isOneshot(sensor)) {
+                    Log.d(TAG, "Going to request TriggerSensor: " + sensor.toString());
+                    if (! mSensorManager.requestTriggerSensor(
+                            mTriggerEventListener, sensor)) {
+                        Log.w(TAG, "Cannot request TriggerSensor: " + sensor.toString());
+                        continue;
+                    }
+                } else {
+                    Log.d(TAG, "Going to register Listener: " + sensor.toString());
+                    if (! mSensorManager.registerListener(
+                            this, sensor, SensorManager.SENSOR_DELAY_NORMAL)) {
+                        Log.w(TAG, "Cannot register listener: " + sensor.toString());
+                        continue;
+                    }
                 }
+                mSensorListenerActive = true;
             } else {
-                Log.w(TAG, "SensorManager: Cannot get sensor (type=" + sensorType + ")");
+                Log.w(TAG, "Unsupported sensor type: " + sensorType);
             }
         }
     }
@@ -452,19 +528,46 @@ public class SensorService extends Service
         for (int i = 0, n = sensorTypes.size(); i < n; i++) {
             int sensorType = sensorTypes.get(i);
 
-            String sensorName = mSensorStorage.getSensorName(sensorType);
-            if (sensorName == null) {
-                Log.w(TAG, "Unsupported sensor type: " + sensorType);
-                continue;
-            }
-
-            Sensor sensor = mSensorManager.getDefaultSensor(sensorType);
+            Sensor sensor = mSensorStorage.lookupSensor(sensorType);
             if (sensor != null) {
-                mSensorManager.unregisterListener(this, sensor);
+                Log.d(TAG, "XXX: " + "[" + (i+1) + "/" + n + "]" +
+                        "Going to disable: " + sensor.getName());
+
+                if (isOneshot(sensor)) {
+                    mSensorManager.cancelTriggerSensor(
+                            mTriggerEventListener, sensor);
+                } else {
+                    mSensorManager.unregisterListener(this, sensor);
+                }
+                mSensorListenerActive = false;
             } else {
-                Log.w(TAG, "SensorManager: Cannot get sensor (type=" + sensorType + ")");
+                Log.w(TAG, "Unsupported sensor type: " + sensorType);
             }
         }
+    }
+
+    private boolean isOneshot(Sensor sensor) {
+        boolean result = false;
+        if (android.os.Build.VERSION.SDK_INT
+                >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            int reportingMode = sensor.getReportingMode();
+            switch (reportingMode) {
+                case Sensor.REPORTING_MODE_ONE_SHOT:
+                    result = true;
+                    break;
+                case Sensor.REPORTING_MODE_CONTINUOUS:
+                case Sensor.REPORTING_MODE_ON_CHANGE:
+                case Sensor.REPORTING_MODE_SPECIAL_TRIGGER:
+                default:
+                    break;
+            }
+        } else {
+            /*
+             * Maybe the best bet without Sensor.getReportingMode().
+             */
+            result = (sensor.getType() == Sensor.TYPE_SIGNIFICANT_MOTION);
+        }
+        return result;
     }
 
     /**
@@ -513,7 +616,7 @@ public class SensorService extends Service
      * <p>See the SENSOR_STATUS_* constants in
      * {@link SensorManager SensorManager} for details.
      *
-     * @param sensor
+     * @param sensor The target {@link Sensor} object of interest.
      * @param accuracy The new accuracy of this sensor, one of
      *                 {@code SensorManager.SENSOR_STATUS_*}
      */
@@ -523,11 +626,37 @@ public class SensorService extends Service
                 "),accuracy(" + accuracy + ")");
     }
 
+    private final TriggerEventListener mTriggerEventListener =
+            new TriggerEventListener() {
+        /**
+         * The method that will be called when the sensor
+         * is triggered. Override this method in your implementation
+         * of this class.
+         *
+         * @param event The details of the event.
+         */
+        @Override
+        public void onTrigger(TriggerEvent event) {
+            Sensor sensor = event.sensor;
+            long timestamp = event.timestamp;
+            float[] values = event.values;
+
+            Log.d(TAG, "onTrigger: SENSOR[" +
+                    "name(" + sensor.getName() + ")" +
+                    ",timestamp(" + timestamp + ")" +
+                    "]");
+
+            for (int i = 0, n = values.length; i < n; i++) {
+                float value = values[i];
+                Log.d(TAG, "VALUE[" + (i+1) + '/' + n + "]: " + value);
+            }
+        }
+    };
+
     private void exportSensorValues() {
         ArrayList<SensorHolder> sensorHolders =
                 mSensorStorage.getSensorHolders();
 
-        // TODO: Set parameters
         String publisher = mUserDataStorage.getPublisher(); // "user1@example.com";
         String note = mUserDataStorage.getNote();
         float longitude = mLocationStorage.getLongitude(); // (float) 35.681236;
@@ -542,6 +671,7 @@ public class SensorService extends Service
         } else {
             Log.w(TAG, "CANNOT BUILD JSON...");
         }
+        mSensorStorage.clearSensorEvent();
     }
 
     private void sendToClients(int what, int result_code, Bundle bundle) {

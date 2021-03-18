@@ -1,39 +1,28 @@
-FROM frolvlad/alpine-glibc:alpine-3.10
+FROM openjdk:8-jdk-slim
 
-## install package
-RUN apk update && \
-    apk upgrade && \
-    apk --no-cache --virtual .build add \
-    bash \
-    openjdk8 \
-    wget 
+# hadolint ignore=DL3008
+RUN apt-get update \
+ && apt-get -y install --no-install-recommends curl unzip \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
-## ENV settings
-ENV JAVA_HOME /usr/lib/jvm/java-1.8-openjdk
-# See https://developer.android.com/studio#command-tools
-ARG SDK_TOOL_VERSION=commandlinetools-linux-6514223_latest
-ENV ANDROID_HOME /usr/local/android-sdk-linux
-# See https://developer.android.com/studio/releases/build-tools
-ARG BUILD_TOOLS_VERSION=29.0.3
-ARG PLATFORMS_VERSION=android-29
-ENV PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin
+ENV ANDROID_HOME /opt/android-sdk
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/bin
 
-# install android sdk tools
-RUN mkdir $ANDROID_HOME && \
-  wget "https://dl.google.com/android/repository/${SDK_TOOL_VERSION}.zip" && \
-  unzip -d $ANDROID_HOME $SDK_TOOL_VERSION.zip && \
-  rm -rf $SDK_TOOL_VERSION.zip
+ARG COMMAND_LINE_TOOLS=commandlinetools-linux-6858069_latest
 
-# agree sdkmanager licenses
-RUN mkdir ~/.android && \
-    touch ~/.android/repositories.cfg
-#
-# Workaround to avoid a bug in sdkmanager
-# https://stackoverflow.com/questions/60440509/android-command-line-tools-sdkmanager-always-shows-warning-could-not-creae-se
-#
-#RUN yes | sdkmanager --licenses
+RUN mkdir -p $ANDROID_HOME \
+ && curl -o /tmp/${COMMAND_LINE_TOOLS}.zip https://dl.google.com/android/repository/${COMMAND_LINE_TOOLS}.zip \
+ && unzip -d ${ANDROID_HOME} /tmp/${COMMAND_LINE_TOOLS}.zip \
+ && rm /tmp/${COMMAND_LINE_TOOLS}.zip
+
+RUN mkdir ~/.android \
+ && touch ~/.android/repositories.cfg
+
+ARG BUILD_TOOLS_VERSION=30.0.2
+ARG PLATFORMS_VERSION=android-30
+
+# hadolint ignore=DL4006
 RUN yes | sdkmanager --sdk_root=${ANDROID_HOME} --licenses
-
-# install android tools and more
-#RUN sdkmanager "tools" "build-tools;${BUILD_TOOLS_VERSION}" "platforms;${PLATFORMS_VERSION}" "platform-tools" "extras;android;m2repository"
-RUN sdkmanager --sdk_root=${ANDROID_HOME} "tools" "build-tools;${BUILD_TOOLS_VERSION}" "platforms;${PLATFORMS_VERSION}" "platform-tools" "extras;android;m2repository"
+RUN sdkmanager --sdk_root=${ANDROID_HOME} "build-tools;${BUILD_TOOLS_VERSION}" \
+ && sdkmanager --sdk_root=${ANDROID_HOME} "platforms;${PLATFORMS_VERSION}" "platform-tools"

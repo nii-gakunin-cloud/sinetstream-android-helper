@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -21,6 +21,8 @@
 
 package jp.ad.sinet.stream.android.helper;
 
+import androidx.annotation.NonNull;
+
 import java.util.ArrayList;
 
 /**
@@ -28,34 +30,86 @@ import java.util.ArrayList;
  */
 public interface SensorListener {
     /**
-     * Called as the successful response of SensorController#getAvailableSensorTypes.
-     * @param sensorTypes List of Sensor.TYPE_XXX
+     * As the successful response of {@link SensorController#getAvailableSensorTypes},
+     * {@link SensorService} returns the pair of ArrayLists, one for available
+     * sensor types, and the other for those sensor type names.
+     * <p>
+     *     You can access each ArrayList elements as follows.
+     *     <pre>{@code
+     *         for (int i = 0; i < sensorTypes.size(i); i++) {
+     *             int sensorType = sensorTypes.get(i);
+     *             String sensorTypeName = sensorTypeNames.get(i);
+     *             ...
+     *         }
+     *     }</pre>
+     * </p>
+     *
+     * @param sensorTypes ArrayList of available sensor types
+     * @param sensorTypeNames ArrayList of sensor type names, such as "accelerometer"
+     *
+     * @see <a href="https://developer.android.com/reference/android/hardware/Sensor">Sensor</a>
+     * for details on possible sensor types (Sensor.TYPE_XXX).
      */
-    void onSensorTypesReceived(ArrayList<Integer> sensorTypes);
+    void onSensorTypesReceived(
+            @NonNull ArrayList<Integer> sensorTypes,
+            @NonNull ArrayList<String> sensorTypeNames);
 
     /**
-     * Called when SensorService has bound by SensorController#bindSensorService.
-     * From this point, client can operate sensors on the device.
+     * Called when SensorService has bound by {@link SensorController#bindSensorService}.
+     * <p>
+     *     From this point, client can operate sensors on the device.
+     * </p>
+     *
      * @param info A supplemental message from system, if any
      */
-    void onSensorEngaged(String info);
+    void onSensorEngaged(@NonNull String info);
 
     /**
-     * Called when SensorService has unbound by SensorController#unbindSensorService.
+     * Called when SensorService has unbound by {@link SensorController#unbindSensorService}.
+     * <p>
+     *     Client should wait for this notification before exit.
+     * </p>
+     *
      * @param info A supplemental message from system, if any
      */
-    void onSensorDisengaged(String info);
+    void onSensorDisengaged(@NonNull String info);
 
     /**
      * Called when locally-stored sensor data has flushed.
-     * @param data Formatted sensor data for display.
+     *
+     * <p>
+     *     Sample JSON data will look as follows.
+     *     <pre>{@code
+     *     {
+     *         "device":{
+     *             "sysinfo":{
+     *                 "android":"8.0.0",
+     *                 "manufacturer":"Google",
+     *                 "model":"Android SDK built for x86"
+     *             },
+     *             "userinfo":{},
+     *             "location":{}
+     *         },
+     *         "sensors":[
+     *             {
+     *                 "type":"light",
+     *                 "name":"Goldfish Light sensor",
+     *                 "timestamp":"20210224T184244.120+0900",
+     *                 "value":9894.7001953125
+     *             }
+     *         ]
+     *     }
+     *     }</pre>
+     * </p>
+     *
+     * @param jsonData JSON formatted data
      */
-    void onSensorDataReceived(String data);
+    void onSensorDataReceived(@NonNull String jsonData);
 
     /**
      * Called on any error occasions.
      * @param errmsg Error description message
      */
-    void onError(String errmsg);
+    void onError(@NonNull String errmsg);
 }
 

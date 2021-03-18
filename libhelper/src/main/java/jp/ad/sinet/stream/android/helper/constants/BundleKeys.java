@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -22,13 +22,13 @@
 package jp.ad.sinet.stream.android.helper.constants;
 
 public class BundleKeys {
-    public final static String BUNDLE_KEY_PARCELABLE = "bundle_key_parcelable";
     public final static String BUNDLE_KEY_INTERVAL_TIMER = "bundle_key_interval_timer";
     public final static String BUNDLE_KEY_LOCATION_LONGITUDE = "bundle_key_location_longitude";
     public final static String BUNDLE_KEY_LOCATION_LATITUDE = "bundle_key_location_latitude";
     public final static String BUNDLE_KEY_USERINFO_PUBLISHER = "bundle_key_userinfo_publisher";
     public final static String BUNDLE_KEY_USERINFO_NOTE = "bundle_key_userinfo_note";
     public final static String BUNDLE_KEY_SENSOR_TYPES = "bundle_key_sensor_types";
+    public final static String BUNDLE_KEY_SENSOR_TYPE_NAMES = "bundle_key_sensor_type_names";
     public final static String BUNDLE_KEY_SENSOR_VALUES = "bundle_key_sensor_values";
     public final static String BUNDLE_KEY_ERROR_MESSAGE = "bundle_key_error_message";
 }

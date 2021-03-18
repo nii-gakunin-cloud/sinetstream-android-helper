@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -22,6 +22,7 @@
 package jp.ad.sinet.stream.android.helper;
 
 import android.content.ComponentName;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -43,6 +44,32 @@ import jp.ad.sinet.stream.android.helper.constants.BundleKeys;
 import jp.ad.sinet.stream.android.helper.constants.IpcType;
 
 
+/**
+ * As the front-end element of the SINETStreamHelper library, this class
+ * provides a set of API functions to control sensor devices.
+ *
+ * <p>
+ *     The SensorController binds to the internal Service element
+ *     {@link SensorService} and cooperates with it.
+ * </p>
+ *
+ * <p>
+ *     Due to the nature of messaging system, all methods listed below
+ *     should be handled as asynchronous requests.
+ *     <ul>
+ *         <li>bindSensorService</li>
+ *         <li>unbindSensorService</li>
+ *         <li>enableSensors</li>
+ *         <li>disableSensors</li>
+ *     </ul>
+ * </p>
+ *
+ * <p>
+ *     User of this class must implement the {@link SensorListener}
+ *     in the calling {@link Activity}, so that the operation result of an
+ *     asynchronous request or any error conditions to be notified.
+ * </p>
+ */
 public class SensorController {
     private final static String TAG = SensorController.class.getSimpleName();
 
@@ -56,7 +83,20 @@ public class SensorController {
     private final Context mContext;
     private final int mClientId;
 
-    public SensorController(Context context, int clientId) {
+    /**
+     * Constructs a SensorController instance.
+     *
+     * @param context the Application context which implements
+     *                {@link SensorListener},
+     *                usually it is the calling {@link Activity} itself.
+     *
+     * @param clientId the client ID which distinguishes myself from
+     *                 other clients bound to the same {@link SensorService}.
+     *
+     * @throws RuntimeException if given context does not implement
+     *                          the required listener.
+     */
+    public SensorController(@NonNull Context context, int clientId) {
         if (context instanceof SensorListener) {
             this.mContext = context;
             this.mListener = (SensorListener)context;
@@ -67,22 +107,24 @@ public class SensorController {
         }
     }
 
-    /**
+    /*
      * API functions to control SensorService.
      */
-    /*
-     * XXX: NOTYET: Do we need start/stop Service functions?
+    /**
+     * Binds to the {@link SensorService} to start sensor handling.
+     * <p>
+     *     This is an asynchronous request and thus caller should wait
+     *     for a notification to know the operation result.
+     *     On success, caller will be notified by
+     *     {@link SensorListener#onSensorEngaged}, otherwise
+     *     notified by {@link SensorListener#onError}.
+     * </p>
      *
-    public void startSensorService() {
-        mContext.startService(new Intent(mContext, SensorService.class));
-    }
-
-    public void stopSensorService() {
-        mContext.stopService(new Intent(mContext, SensorService.class));
-    }
-    */
-
+     * @see <a href="https://developer.android.com/guide/components/bound-services">Bound services overview</a>
+     */
     public void bindSensorService() {
+        Log.d(TAG, "bindSensorService");
+
         // Establish a connection with the service. We use an explicit
         // class name because there is no reason to be able to let other
         // applications replace our component.
@@ -103,6 +145,18 @@ public class SensorController {
         }
     }
 
+    /**
+     * Unbinds from the {@link SensorService} to finish sensor handling.
+     * <p>
+     *     This is an asynchronous request and thus caller should wait
+     *     for a notification to know the operation result.
+     *     On success, caller will be notified by
+     *     {@link SensorListener#onSensorDisengaged}, otherwise
+     *     notified by {@link SensorListener#onError}.
+     * </p>
+     *
+     * @see <a href="https://developer.android.com/guide/components/bound-services">Bound services overview</a>
+     */
     public void unbindSensorService() {
         Log.d(TAG, "unbindSensorService");
 
@@ -125,6 +179,29 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} for the all sensor information available
+     * on this device.
+     *
+     * <p>
+     *     This is an asynchronous request and thus caller should wait
+     *     for a notification to know the operation result.
+     *     On success, caller will be notified by
+     *     {@link SensorListener#onSensorTypesReceived},
+     *     otherwise {@link SensorListener#onError} will be notified.
+     * </p>
+     *
+     * <p>
+     *     <em>NOTE:</em>
+     *     Availability of sensor devices depends on the running environment.
+     *     Some devices may even have vendor private sensors those which we
+     *     have no idea how to handle those readout values.
+     *     To eliminate ambiguity, we only handle sensors those which types
+     *     and values are defined in the Android Developers document.
+     * </p>
+     *
+     * @see <a href="https://developer.android.com/reference/android/hardware/SensorEvent#values">Sensor Values</a>
+     */
     public void getAvailableSensorTypes() {
         if (mIsBound) {
             Message msg = Message.obtain(
@@ -141,6 +218,28 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} to enable designated sensors.
+     *
+     * <p>
+     *     This is an asynchronous request, but caller DON'T have to
+     *     wait for the operation result.
+     *     As soon as designated sensors being enabled, those readout
+     *     data will be periodically notified by
+     *     {@link SensorListener#onSensorDataReceived}.
+     *     If something goes bad, {@link SensorListener#onError} will
+     *     be notified.
+     * </p>
+     *
+     * <p>
+     *     <em>NOTE:</em>
+     *     The preloaded list of available sensor types on this device
+     *     is kept in the {@link SensorService}. If the caller specifies
+     *     an unknown sensorType, it will simply be ignored.
+     * </p>
+     *
+     * @param sensorTypes ArrayList of target sensor types
+     */
     public void enableSensors(@NonNull ArrayList<Integer> sensorTypes) {
         if (mIsBound) {
             Message msg = Message.obtain(
@@ -159,6 +258,27 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} to disable designated sensors.
+     *
+     * <p>
+     *     This is an asynchronous request, but caller DON'T have to
+     *     wait for the operation result.
+     *     As soon as designated sensors being disabled, those readout
+     *     data will NOT be notified anymore.
+     *     If something goes bad, {@link SensorListener#onError} will
+     *     be notified.
+     * </p>
+     *
+     * <p>
+     *     <em>NOTE:</em>
+     *     The preloaded list of available sensor types on this device
+     *     is kept in the {@link SensorService}. If the caller specifies
+     *     an unknown sensorType, it will simply be ignored.
+     * </p>
+     *
+     * @param sensorTypes ArrayList of target sensor types
+     */
     public void disableSensors(@NonNull ArrayList<Integer> sensorTypes) {
         if (mIsBound) {
             Message msg = Message.obtain(
@@ -177,6 +297,17 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} to set minimum time spacing for each
+     * {@link SensorListener#onSensorDataReceived} notifications.
+     *
+     * <p>
+     *     Calling of this method is optional.
+     *     If omitted, default value 10 (seconds) will be used.
+     * </p>
+     *
+     * @param seconds interval timer, where {0 < seconds <= Long.MAX_VALUE}
+     */
     public void setIntervalTimer(long seconds) {
         /*
          * SensorEvent.timestamp is set in nanoseconds.
@@ -203,6 +334,22 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} to keep the geological location
+     * (longitude, latitude) of this device.
+     *
+     * <p>
+     *     The specified value pair will be embedded in the JSON data
+     *     notified by {@link SensorListener#onSensorDataReceived}.
+     * </p>
+     * <p>
+     *     Calling of method is optional.
+     *     If omitted, empty location daa will be used.
+     * </p>
+     *
+     * @param longitude longitude of this device, where {-180.0 <= longitude <= 180.0}
+     * @param latitude latitude of this device, where {-90.0 <= latitude <= 90.0}
+     */
     public void setLocation(float longitude, float latitude) {
         if ((longitude < -180.0 || 180.0 < longitude)
                 || (latitude < -90 || 90.0 < latitude)) {
@@ -228,6 +375,21 @@ public class SensorController {
         }
     }
 
+    /**
+     * Ask {@link SensorService} to keep the user data of caller.
+     *
+     * <p>
+     *     The specified values will be embedded in the JSON data
+     *     notified by {@link SensorListener#onSensorDataReceived}.
+     * </p>
+     * <p>
+     *     Calling of this method is optional.
+     *     If omitted, empty user data will be used.
+     * </p>
+     *
+     * @param publisher user descriptions, if any
+     * @param note additional comment, if any
+     */
     public void setUserData(@Nullable String publisher, @Nullable String note) {
         if (mIsBound) {
             Message msg = Message.obtain(
@@ -294,8 +456,12 @@ public class SensorController {
                 if (bundle != null) {
                     ArrayList<Integer> sensorTypes =
                             bundle.getIntegerArrayList(BundleKeys.BUNDLE_KEY_SENSOR_TYPES);
-                    if (sensorTypes != null) {
-                        mListener.onSensorTypesReceived(sensorTypes);
+                    ArrayList<String> sensorTypeNames =
+                            bundle.getStringArrayList(BundleKeys.BUNDLE_KEY_SENSOR_TYPE_NAMES);
+
+                    /* Null check for fail-safe */
+                    if (sensorTypes != null && sensorTypeNames != null) {
+                        mListener.onSensorTypesReceived(sensorTypes, sensorTypeNames);
                     } else {
                         Log.w(TAG, "Null sensorTypes?");
                     }
@@ -326,7 +492,7 @@ public class SensorController {
                 break;
             case IpcType.MSG_ERROR:
                 if (bundle != null) {
-                    String errmsg = bundle.getString(BundleKeys.BUNDLE_KEY_PARCELABLE);
+                    String errmsg = bundle.getString(BundleKeys.BUNDLE_KEY_ERROR_MESSAGE);
                     if (errmsg != null) {
                         mListener.onError(errmsg);
                     } else {

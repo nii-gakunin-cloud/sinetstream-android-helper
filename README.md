@@ -1,5 +1,5 @@
 <!--
-Copyright (C) 2020 National Institute of Informatics
+Copyright (C) 2020-2021 National Institute of Informatics
 
 Licensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements.  See the NOTICE file
@@ -71,7 +71,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.4.0'
+    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.5.0'
 }
 ```
 
@@ -149,12 +149,3 @@ MQTTメッセージのペイロード部に渡される。
 }
 ```
 
-
-## 注意
-
-* 下位層「SINETStream Android」との連携（JSONのネットワーク送出）は作業中。
-
-
-## ライセンス
-
-GitLab内部公開

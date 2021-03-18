@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (C) 2020-2021 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -294,22 +294,27 @@ public class JsonBuilder {
             case Sensor.TYPE_PROXIMITY:
             case Sensor.TYPE_RELATIVE_HUMIDITY:
             case Sensor.TYPE_AMBIENT_TEMPERATURE:
-            case Sensor.TYPE_GRAVITY:
-            case Sensor.TYPE_LINEAR_ACCELERATION:
             case Sensor.TYPE_STATIONARY_DETECT:
             case Sensor.TYPE_MOTION_DETECT:
             case Sensor.TYPE_HEART_BEAT:
             case Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT:
+            case Sensor.TYPE_HINGE_ANGLE:
+                /*
+                 * Following types are not mentioned in the developer document
+                 * https://developer.android.com/reference/android/hardware/SensorEvent#values
+                 * but we can safely say those outputs are scalar values.
+                 */
+            case Sensor.TYPE_STEP_COUNTER:
+            case Sensor.TYPE_STEP_DETECTOR:
                 dimensions = 1;
-                break;
-
-            case Sensor.TYPE_ORIENTATION:
-                dimensions = 2;
                 break;
 
             case Sensor.TYPE_ACCELEROMETER:
             case Sensor.TYPE_MAGNETIC_FIELD:
             case Sensor.TYPE_GYROSCOPE:
+            case Sensor.TYPE_GRAVITY:
+            case Sensor.TYPE_LINEAR_ACCELERATION:
+            case Sensor.TYPE_ORIENTATION:
                 dimensions = 3;
                 break;
 
