@@ -140,7 +140,7 @@ public class SensorController {
                     Log.w(TAG, "bindSensorService: bindService failed?");
                 }
             } catch (SecurityException e) {
-                Log.e(TAG, "bindSensorService: " + e.toString());
+                mListener.onError(TAG + ": bindSensorService: " + e.toString());
             }
         }
     }
@@ -170,7 +170,7 @@ public class SensorController {
                 msg.replyTo = mMessenger;
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "unbindSensorService: " + e.toString());
+                mListener.onError(TAG + ": unbindSensorService: " + e.toString());
             }
 
             // Detach out existing connection.
@@ -211,10 +211,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 
@@ -251,10 +251,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 
@@ -290,10 +290,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 
@@ -327,10 +327,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 
@@ -368,10 +368,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 
@@ -406,10 +406,10 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                Log.w(TAG, "Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
             }
         } else {
-            Log.w(TAG, "Service not yet bound");
+            mListener.onError(TAG + ": Service not yet bound");
         }
     }
 

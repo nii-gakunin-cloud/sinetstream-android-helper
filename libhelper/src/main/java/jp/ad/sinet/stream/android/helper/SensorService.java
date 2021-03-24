@@ -471,7 +471,7 @@ public class SensorService extends Service
                         Log.d(TAG, "Going to enable ALL sensor types");
                         sensorTypes = mSensorStorage.getSensorTypes();
                     }
-                    enableSensors(sensorTypes);
+                    enableSensors(msg, sensorTypes);
                 } else {
                     errorReply(msg.replyTo, "SENSOR_TYPES: Bundle data is missing?");
                 }
@@ -493,9 +493,10 @@ public class SensorService extends Service
         }
     }
 
-    private void enableSensors(ArrayList<Integer> sensorTypes) {
+    private void enableSensors(Message msg, ArrayList<Integer> sensorTypes) {
         for (int i = 0, n = sensorTypes.size(); i < n; i++) {
             int sensorType = sensorTypes.get(i);
+            String typeName = mSensorStorage.getSensorTypeName(sensorType);
 
             Sensor sensor = mSensorStorage.lookupSensor(sensorType);
             if (sensor != null) {
@@ -503,18 +504,25 @@ public class SensorService extends Service
                         "Going to enable: " + sensor.getName());
 
                 if (isOneshot(sensor)) {
-                    Log.d(TAG, "Going to request TriggerSensor: " + sensor.toString());
-                    if (! mSensorManager.requestTriggerSensor(
-                            mTriggerEventListener, sensor)) {
-                        Log.w(TAG, "Cannot request TriggerSensor: " + sensor.toString());
-                        continue;
+                    try {
+                        if (! mSensorManager.requestTriggerSensor(
+                                mTriggerEventListener, sensor)) {
+                            errorReply(msg.replyTo, TAG +
+                                    ": requestTriggerSensor(" + typeName + "): FAILED?");
+                            break;
+                        }
+                    } catch (IllegalArgumentException e) {
+                        errorReply(msg.replyTo, TAG +
+                                ": requestTriggerSensor(" + typeName + "): " +
+                                e.toString());
+                        break;
                     }
                 } else {
-                    Log.d(TAG, "Going to register Listener: " + sensor.toString());
                     if (! mSensorManager.registerListener(
                             this, sensor, SensorManager.SENSOR_DELAY_NORMAL)) {
-                        Log.w(TAG, "Cannot register listener: " + sensor.toString());
-                        continue;
+                        errorReply(msg.replyTo, TAG +
+                                ": registerListener(" + typeName + "): FAILED?");
+                        break;
                     }
                 }
                 mSensorListenerActive = true;
@@ -527,6 +535,7 @@ public class SensorService extends Service
     private void disableSensors(ArrayList<Integer> sensorTypes) {
         for (int i = 0, n = sensorTypes.size(); i < n; i++) {
             int sensorType = sensorTypes.get(i);
+            String typeName = mSensorStorage.getSensorTypeName(sensorType);
 
             Sensor sensor = mSensorStorage.lookupSensor(sensorType);
             if (sensor != null) {
@@ -534,8 +543,15 @@ public class SensorService extends Service
                         "Going to disable: " + sensor.getName());
 
                 if (isOneshot(sensor)) {
-                    mSensorManager.cancelTriggerSensor(
-                            mTriggerEventListener, sensor);
+                    try {
+                        if (! mSensorManager.cancelTriggerSensor(
+                                mTriggerEventListener, sensor)) {
+                            Log.w(TAG, "cancelTriggerSensor(" + typeName + "): FAILED?");
+                        }
+                    } catch (IllegalArgumentException e) {
+                        Log.w(TAG, "cancelTriggerSensor(" + typeName + "): " +
+                                e.toString());
+                    }
                 } else {
                     mSensorManager.unregisterListener(this, sensor);
                 }

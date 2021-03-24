@@ -71,7 +71,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.5.0'
+    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.5.1'
 }
 ```
 
