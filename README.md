@@ -17,7 +17,7 @@ software distributed under the License is distributed on an
 KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
---->
+-->
 
 # SINETStreamHelper
 
@@ -71,7 +71,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.5.1'
+    implementation 'jp.ad.sinet.stream.android.helper:libhelper:1.5.2'
 }
 ```
 
