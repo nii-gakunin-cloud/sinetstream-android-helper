@@ -21,14 +21,15 @@
 
 package jp.ad.sinet.stream.android.helper;
 
-import android.content.ComponentName;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
@@ -336,34 +337,58 @@ public class SensorController {
 
     /**
      * Ask {@link SensorService} to keep the geological location
-     * (longitude, latitude) of this device.
+     * (latitude, longitude) of this device.
      *
      * <p>
      *     The specified value pair will be embedded in the JSON data
      *     notified by {@link SensorListener#onSensorDataReceived}.
      * </p>
      * <p>
-     *     Calling of method is optional.
-     *     If omitted, empty location daa will be used.
+     *     Calling of this method is optional.
+     *     If omitted, empty location data will be used.
      * </p>
      *
-     * @param longitude longitude of this device, where {-180.0 <= longitude <= 180.0}
      * @param latitude latitude of this device, where {-90.0 <= latitude <= 90.0}
+     * @param longitude longitude of this device, where {-180.0 <= longitude <= 180.0}
      */
-    public void setLocation(float longitude, float latitude) {
-        if ((longitude < -180.0 || 180.0 < longitude)
-                || (latitude < -90 || 90.0 < latitude)) {
-            mListener.onError("Location{" + longitude +
-                    ", " + latitude + "} out of range");
+    public void setLocation(double latitude, double longitude) {
+        if ((latitude < -90 || 90.0 < latitude)
+        ||  (longitude < -180.0 || 180.0 < longitude)) {
+            mListener.onError("Location{" + latitude +
+                    ", " + longitude + "} out of range");
             return;
         }
         if (mIsBound) {
             Message msg = Message.obtain(
                     null, IpcType.MSG_SET_LOCATION, 0, mClientId);
             Bundle bundle = new Bundle();
-            bundle.putFloat(BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, longitude);
-            bundle.putFloat(BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, latitude);
+            bundle.putDouble(BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, latitude);
+            bundle.putDouble(BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, longitude);
             msg.setData(bundle);
+            msg.replyTo = mMessenger;
+            try {
+                mService.send(msg);
+            } catch (RemoteException e) {
+                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+            }
+        } else {
+            mListener.onError(TAG + ": Service not yet bound");
+        }
+    }
+
+    /**
+     * Ask {@link SensorService} to reset the geological location
+     * (latitude, longitude) of this device as unspecified.
+     * <p>
+     *     Typical use case of this method would be to adapt to dynamic
+     *     system configuration changes (i.e. Location settings ON/OFF)
+     *     during the lifetime of user application.
+     * </p>
+     */
+    public void resetLocation() {
+        if (mIsBound) {
+            Message msg = Message.obtain(
+                    null, IpcType.MSG_RESET_LOCATION, 0, mClientId);
             msg.replyTo = mMessenger;
             try {
                 mService.send(msg);
@@ -417,7 +442,8 @@ public class SensorController {
      * IPC endpoint to send messages to Service.
      */
     private final Messenger mMessenger =
-            new Messenger(new IncomingHandler(this));
+            new Messenger(new IncomingHandler(
+                    Looper.getMainLooper(),this));
 
     /**
      * Handler for incoming messages from Service.
@@ -425,7 +451,14 @@ public class SensorController {
     private static class IncomingHandler extends Handler {
         final WeakReference<SensorController> weakReference;
 
-        IncomingHandler(SensorController sensorController) {
+        /*
+         * Default constructor in android.os.Handler is deprecated.
+         * We need to use an Executor or specify the Looper explicitly.
+         */
+        IncomingHandler(
+                @NonNull Looper looper, @NonNull SensorController sensorController) {
+            super(looper);
+
             /* Keep the enclosing class object as weak-reference to prevent leaks */
             weakReference = new WeakReference<>(sensorController);
         }
@@ -483,6 +516,7 @@ public class SensorController {
                 break;
             case IpcType.MSG_SET_INTERVAL_TIMER:
             case IpcType.MSG_SET_LOCATION:
+            case IpcType.MSG_RESET_LOCATION:
             case IpcType.MSG_SET_USER_DATA:
                 /* These cases are meant to be an ACK */
                 if (result_code != 0) {
@@ -540,7 +574,7 @@ public class SensorController {
 
             mIsBound = true;
             mListener.onSensorEngaged(
-                    mContext.getString(R.string.remote_service_connected));
+                    mContext.getString(R.string.sensor_service_connected));
         }
 
         @Override
@@ -552,7 +586,7 @@ public class SensorController {
 
             mIsBound = false;
             mListener.onSensorDisengaged(
-                    mContext.getString(R.string.remote_service_disconnected));
+                    mContext.getString(R.string.sensor_service_disconnected));
         }
     };
 }

@@ -22,27 +22,31 @@
 package jp.ad.sinet.stream.android.helper.provider;
 
 public class LocationStorage {
-    private float mLongitude = Float.NaN;
-    private float mLatitude = Float.NaN;
+    private double mLatitude = Double.NaN;
+    private double mLongitude = Double.NaN;
 
-    public float getLongitude() {
+    public double getLongitude() {
         return mLongitude;
     }
 
-    public void setLongitude(float longitude) {
+    public void setLongitude(double longitude) {
         this.mLongitude = longitude;
     }
 
-    public float getLatitude() {
+    public double getLatitude() {
         return mLatitude;
     }
 
-    public void setLatitude(float latitude) {
+    public void setLatitude(double latitude) {
         this.mLatitude = latitude;
     }
 
-    public void setLocation(float longitude, float latitude) {
-        setLongitude(longitude);
+    public void setLocation(double latitude, double longitude) {
         setLatitude(latitude);
+        setLongitude(longitude);
+    }
+
+    public void resetLocation() {
+        setLocation(Double.NaN, Double.NaN);
     }
 }

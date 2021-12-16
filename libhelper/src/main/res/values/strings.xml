@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="service_name">SINETStream Sensor Service</string>
-    <string name="remote_service_connected">Remote Service Connected</string>
-    <string name="remote_service_disconnected">Remote Service Disconnected</string>
+    <!-- SensorService -->
+    <string name="service_name_sensor">SINETStream Sensor Service</string>
+    <string name="sensor_service_connected">Sensor Service Connected</string>
+    <string name="sensor_service_disconnected">Sensor Service Disconnected</string>
     <!--
-    <string name="remote_service_started">Remote Service Started</string>
-    <string name="remote_service_stopped">Remote Service Stopped</string>
+    <string name="sensor_service_started">Sensor Service Started</string>
+    <string name="sensor_service_stopped">Sensor Service Stopped</string>
     -->
-    <string name="remote_service_running">Sensor Service is Running</string>
+    <string name="sensor_service_running">Sensor Service is Running</string>
+
+    <!-- GpsService -->
+    <string name="service_name_gps">SINETStream GPS Service</string>
+    <string name="gps_service_running">GPS Service is Running</string>
+
+    <!-- FlpService -->
+    <string name="service_name_flp">SINETStream FLP Service</string>
+    <string name="flp_service_running">FLP Service is Running</string>
 </resources>

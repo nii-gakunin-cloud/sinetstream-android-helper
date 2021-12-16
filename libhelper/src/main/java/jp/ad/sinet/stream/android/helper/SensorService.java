@@ -39,6 +39,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
@@ -84,7 +85,8 @@ public class SensorService extends Service
     /* Make sure ALL sensor listener gets unregistered on unbind */
     private boolean mSensorListenerActive = false;
 
-    private final static String NOTIFICATION_CHANNEL_ID = "10001";
+    private final static String NOTIFICATION_CHANNEL_ID =
+            TAG + ".notification_channel";
 
     /**
      * Called by the system when the service is first created.  Do not call this method directly.
@@ -277,13 +279,13 @@ public class SensorService extends Service
     private void showNotification() {
         NotificationManager nm =
                 (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
-        CharSequence text = getText(R.string.remote_service_running);
+        CharSequence text = getText(R.string.sensor_service_running);
 
         Notification.Builder builder = new Notification.Builder(this)
                 .setSmallIcon(android.R.drawable.btn_star)
                 .setTicker(text)
                 .setWhen(System.currentTimeMillis())
-                .setContentTitle(getText(R.string.service_name))
+                .setContentTitle(getText(R.string.service_name_sensor))
                 .setContentText(text)
                 .setPriority(Notification.PRIORITY_DEFAULT);
 
@@ -299,10 +301,10 @@ public class SensorService extends Service
         notification.flags |= Notification.FLAG_ONGOING_EVENT;
         notification.flags |= Notification.FLAG_NO_CLEAR;
 
-        int NOTIFICATION_ID = R.string.service_name;
+        int NOTIFICATION_ID = R.string.service_name_sensor;
         if (nm != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                String name = getString(R.string.service_name);
+                String name = getString(R.string.service_name_sensor);
                 int importance = NotificationManager.IMPORTANCE_LOW;
 
                 NotificationChannel notificationChannel =
@@ -318,7 +320,7 @@ public class SensorService extends Service
     private void removeNotification() {
         NotificationManager nm =
                 (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
-        int NOTIFICATION_ID = R.string.service_name;
+        int NOTIFICATION_ID = R.string.service_name_sensor;
         if (nm != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 nm.deleteNotificationChannel(NOTIFICATION_CHANNEL_ID);
@@ -331,7 +333,8 @@ public class SensorService extends Service
      * Target we publish for clients to send messages to IncomingHandler.
      */
     private final Messenger mMessenger =
-            new Messenger(new IncomingHandler(this));
+            new Messenger(new IncomingHandler(
+                    Looper.getMainLooper(),this));
 
     /**
      * Handler for incoming messages from clients.
@@ -339,7 +342,14 @@ public class SensorService extends Service
     private static class IncomingHandler extends Handler {
         final WeakReference<SensorService> weakReference;
 
-        IncomingHandler(SensorService sensorService) {
+        /*
+         * Default constructor in android.os.Handler is deprecated.
+         * We need to use an Executor or specify the Looper explicitly.
+         */
+        IncomingHandler(
+                @NonNull Looper looper, @NonNull SensorService sensorService) {
+            super(looper);
+
             /* Keep the enclosing class object as weak-reference to prevent leaks */
             weakReference = new WeakReference<>(sensorService);
         }
@@ -397,16 +407,13 @@ public class SensorService extends Service
                 break;
             case IpcType.MSG_SET_LOCATION:
                 if (bundle_req != null) {
-                    float longitude = bundle_req.getFloat(
-                            BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, Float.NaN);
-                    float latitude = bundle_req.getFloat(
-                            BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, Float.NaN);
-                    if (Float.isNaN(longitude) || Float.isNaN(latitude)) {
-                        errorReply(msg.replyTo,
-                                "Invalid Location {" + longitude + ", " + latitude + "}");
-                    } else {
-                        Log.d(TAG, "Set location {" + longitude + ", " + latitude + "}");
-                        mLocationStorage.setLocation(longitude, latitude);
+                    double latitude = bundle_req.getDouble(
+                            BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, Double.NaN);
+                    double longitude = bundle_req.getDouble(
+                            BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, Double.NaN);
+                    if (! Double.isNaN(latitude) && !Double.isNaN(longitude)) {
+                        Log.d(TAG, "Set location {" + latitude + ", " + longitude + "}");
+                        mLocationStorage.setLocation(latitude, longitude);
                         result_code = 0;
                     }
                 } else {
@@ -416,6 +423,13 @@ public class SensorService extends Service
                     /* ErrorReply has sent; avoid calling sendToClient() again */
                     break;
                 }
+
+                /* Send back process result */
+                sendToClient(msg.replyTo, msg.what, result_code, null);
+                break;
+            case IpcType.MSG_RESET_LOCATION:
+                mLocationStorage.resetLocation();
+                result_code = 0;
 
                 /* Send back process result */
                 sendToClient(msg.replyTo, msg.what, result_code, null);
@@ -675,9 +689,9 @@ public class SensorService extends Service
 
         String publisher = mUserDataStorage.getPublisher(); // "user1@example.com";
         String note = mUserDataStorage.getNote();
-        float longitude = mLocationStorage.getLongitude(); // (float) 35.681236;
-        float latitude = mLocationStorage.getLatitude(); // (float) 139.767125;
-        JsonBuilder jsonBuilder = new JsonBuilder(publisher, note, longitude, latitude);
+        double latitude = mLocationStorage.getLatitude(); // (double) 139.767125;
+        double longitude = mLocationStorage.getLongitude(); // (double) 35.681236;
+        JsonBuilder jsonBuilder = new JsonBuilder(publisher, note, latitude, longitude);
 
         String jsonString = jsonBuilder.buildJsonString(sensorHolders);
         if (jsonString != null) {

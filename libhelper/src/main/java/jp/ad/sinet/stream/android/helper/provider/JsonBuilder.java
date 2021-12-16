@@ -45,8 +45,8 @@ public class JsonBuilder {
 
     private final String mPublisher;
     private final String mUserNote;
-    private final float mLongitude;
-    private final float mLatitude;
+    private final double mLatitude;
+    private final double mLongitude;
 
     private final SensorTypes mSensorTypes = new SensorTypes();
     private final DateTimeUtil mDateTimeUtil = new DateTimeUtil();
@@ -54,11 +54,11 @@ public class JsonBuilder {
 
     public JsonBuilder(
             @Nullable String publisher, @Nullable String note,
-            float longitude, float latitude) {
+            double latitude, double longitude) {
         this.mPublisher = publisher;
         this.mUserNote = note;
-        this.mLongitude = longitude;
         this.mLatitude = latitude;
+        this.mLongitude = longitude;
     }
 
     public void switchPrettyPrint(boolean isEnabled) {
@@ -152,11 +152,11 @@ public class JsonBuilder {
         JSONObject jsonObject = new JSONObject();
         try {
             parentObject.put(JsonTags.JSON_TAGS_LOCATION.getName(), jsonObject);
-            if (! Float.isNaN(this.mLongitude) && ! Float.isNaN(this.mLatitude)) {
-                jsonObject.put(JsonTags.JSON_TAGS_LOCATION_LONGITUDE.getName(),
-                        String.format(Locale.ENGLISH, "%.6f", this.mLongitude));
+            if (! Double.isNaN(this.mLatitude) && ! Double.isNaN(this.mLongitude)) {
                 jsonObject.put(JsonTags.JSON_TAGS_LOCATION_LATITUDE.getName(),
                         String.format(Locale.ENGLISH, "%.6f", this.mLatitude));
+                jsonObject.put(JsonTags.JSON_TAGS_LOCATION_LONGITUDE.getName(),
+                        String.format(Locale.ENGLISH, "%.6f", this.mLongitude));
             }
         } catch (JSONException e) {
             Log.e(TAG, "setLocation: JSONObject.put: " + e.toString());

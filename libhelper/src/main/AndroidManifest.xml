@@ -6,7 +6,23 @@
         <service
             android:name="jp.ad.sinet.stream.android.helper.SensorService"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="false" />
+
+        <!--
+          We run LocationService (either GPS or FLP) as a foreground service.
+          https://developer.android.com/guide/components/foreground-services#types
+        -->
+        <service
+            android:name="jp.ad.sinet.stream.android.helper.GpsService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <service
+            android:name="jp.ad.sinet.stream.android.helper.FlpService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>
