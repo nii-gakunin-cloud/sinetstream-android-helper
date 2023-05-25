@@ -48,6 +48,9 @@ public class IpcType {
     public static final int MSG_LOCATION_START_UPDATES = 9;
     public static final int MSG_LOCATION_STOP_UPDATES = 10;
     public static final int MSG_LOCATION_RESOLUTION_CORRECTED = 11;
+    /* Client -> Service: Cellular Specific */
+    public static final int MSG_CELLULAR_START_UPDATES = 12;
+    public static final int MSG_CELLULAR_STOP_UPDATES = 13;
 
     /* Service -> Client */
     public static final int MSG_SENSOR_DATA = 103;
@@ -55,6 +58,8 @@ public class IpcType {
     public static final int MSG_LOCATION_DATA = 104;
     public static final int MSG_LOCATION_PROVIDER_STATUS = 105;
     public static final int MSG_LOCATION_RESOLUTION_REQUIRED = 106;
+    /* Service -> Client: Cellular Specific */
+    public static final int MSG_CELLULAR_DATA = 107;
 
     /* Client <-> Service */
     public static final int MSG_ERROR = 999;

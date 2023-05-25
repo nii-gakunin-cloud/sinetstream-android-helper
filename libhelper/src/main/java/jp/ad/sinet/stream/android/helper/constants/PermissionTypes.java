@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (c) 2023 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -21,31 +21,8 @@
 
 package jp.ad.sinet.stream.android.helper.constants;
 
-public enum JsonTags {
-    JSON_TAGS_DEVICE("device"),
-    JSON_TAGS_SYSINFO("sysinfo"),
-    JSON_TAGS_USERINFO("userinfo"),
-    JSON_TAGS_USERINFO_PUBLISHER("publisher"),
-    JSON_TAGS_USERINFO_NOTE("note"),
-    JSON_TAGS_LOCATION("location"),
-    JSON_TAGS_LOCATION_LATITUDE("latitude"),
-    JSON_TAGS_LOCATION_LONGITUDE("longitude"),
-    JSON_TAGS_CELLULAR("cellular"),
-    JSON_TAGS_SENSORS("sensors"),
-    JSON_TAGS_SENSOR_TYPE("type"),
-    JSON_TAGS_SENSOR_NAME("name"),
-    JSON_TAGS_SENSOR_ID("id"),
-    JSON_TAGS_SENSOR_SCALAR_VALUE("value"),
-    JSON_TAGS_SENSOR_VECTOR_VALUES("values"),
-    JSON_TAGS_SENSOR_TIMESTAMP("timestamp"),;
-
-    private final String mName;
-
-    JsonTags(String name) {
-        this.mName = name;
-    }
-
-    public String getName() {
-        return mName;
-    }
+public class PermissionTypes {
+    public final static int ACTIVITY_RECOGNITION = (1 << 1);
+    public final static int READ_PHONE_STATE = (1 << 2);
+    public final static int LOCATION = (1 << 3);
 }

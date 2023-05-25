@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 National Institute of Informatics
+ * Copyright (c) 2022 National Institute of Informatics
  *
  *  Licensed to the Apache Software Foundation (ASF) under one
  *  or more contributor license agreements.  See the NOTICE file
@@ -19,32 +19,23 @@
  *  under the License.
  */
 
-package jp.ad.sinet.stream.android.helper.provider;
+package jp.ad.sinet.stream.android.helper.util;
 
-public class LocationStorage {
-    private double mLatitude = Double.NaN;
-    private double mLongitude = Double.NaN;
-    private long mUtcTime = -1;
+import android.content.Context;
+import android.content.pm.ApplicationInfo;
 
-    public double getLongitude() {
-        return mLongitude;
+import androidx.annotation.NonNull;
+
+public class AppInfo {
+    private final Context mContext;
+
+    public AppInfo(Context context) {
+        this.mContext = context;
     }
 
-    public double getLatitude() {
-        return mLatitude;
-    }
-
-    public long getUtcTime() {
-        return mUtcTime;
-    }
-
-    public void setLocation(double latitude, double longitude, long utcTime) {
-        this.mLatitude = latitude;
-        this.mLongitude = longitude;
-        this.mUtcTime = utcTime;
-    }
-
-    public void resetLocation() {
-        setLocation(Double.NaN, Double.NaN, -1);
+    @NonNull
+    public String getApplicationName() {
+        ApplicationInfo applicationInfo = mContext.getApplicationInfo();
+        return applicationInfo.loadLabel(mContext.getPackageManager()).toString();
     }
 }

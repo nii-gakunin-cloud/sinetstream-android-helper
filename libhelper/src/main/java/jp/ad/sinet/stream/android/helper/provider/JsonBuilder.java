@@ -26,6 +26,7 @@ import android.hardware.SensorEvent;
 import android.os.Build;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.json.JSONArray;
@@ -47,18 +48,25 @@ public class JsonBuilder {
     private final String mUserNote;
     private final double mLatitude;
     private final double mLongitude;
+    private final long mUtcTime;
 
-    private final SensorTypes mSensorTypes = new SensorTypes();
+    private SensorTypes mSensorTypes = null;
     private final DateTimeUtil mDateTimeUtil = new DateTimeUtil();
+    private JSONObject mExtraCellularData = null;
     private boolean mEnablePrettyPrint = false;
 
     public JsonBuilder(
             @Nullable String publisher, @Nullable String note,
-            double latitude, double longitude) {
+            double latitude, double longitude, long utcTime) {
         this.mPublisher = publisher;
         this.mUserNote = note;
         this.mLatitude = latitude;
         this.mLongitude = longitude;
+        this.mUtcTime = utcTime;
+    }
+
+    public void addExtraCellularData(@NonNull JSONObject jsonObject) {
+        mExtraCellularData = jsonObject;
     }
 
     public void switchPrettyPrint(boolean isEnabled) {
@@ -80,16 +88,17 @@ public class JsonBuilder {
                 try {
                     jsonString = rootObject.toString(4);
                 } catch (JSONException e) {
-                    Log.e(TAG, "JSONObject.toString: " + e.toString());
-                    jsonString = null;
+                    Log.e(TAG, "JSONObject.toString: " + e);
                 }
             } else {
                 jsonString = rootObject.toString();
             }
         }
+        /* DEBUG
         if (jsonString != null) {
             Log.d(TAG, "JSON=" + jsonString);
         }
+         */
         return jsonString;
     }
 
@@ -99,11 +108,12 @@ public class JsonBuilder {
             parentObject.put(JsonTags.JSON_TAGS_DEVICE.getName(), jsonObject);
             if (! setSysInfo(jsonObject)
                     || ! setUserInfo(jsonObject)
-                    || ! setLocation(jsonObject)) {
+                    || ! setLocation(jsonObject)
+                    || ! setCellularInfo(jsonObject)) {
                 jsonObject = null;
             }
         } catch (JSONException e) {
-            Log.e(TAG, "setDevice: JSONObject: " + e.toString());
+            Log.e(TAG, "setDevice: JSONObject: " + e);
             jsonObject = null;
         }
         return (jsonObject != null);
@@ -125,7 +135,7 @@ public class JsonBuilder {
             // jsonObject.put("tags", Build.TAGS);
             // jsonObject.put("type", Build.TYPE);
         } catch (JSONException e) {
-            Log.e(TAG, "setSysInfo: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setSysInfo: JSONObject.put: " + e);
             return false;
         }
         return true;
@@ -142,8 +152,20 @@ public class JsonBuilder {
                 jsonObject.put(JsonTags.JSON_TAGS_USERINFO_NOTE.getName(), this.mUserNote);
             }
         } catch (JSONException e) {
-            Log.e(TAG, "setUserInfo: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setUserInfo: JSONObject.put: " + e);
             return false;
+        }
+        return true;
+    }
+
+    private boolean setCellularInfo(JSONObject parentObject) {
+        if (mExtraCellularData != null) {
+            try {
+                parentObject.put(JsonTags.JSON_TAGS_CELLULAR.getName(), mExtraCellularData);
+            } catch (JSONException e) {
+                Log.e(TAG, "setCellular: JSONObject.put: " + e);
+                return false;
+            }
         }
         return true;
     }
@@ -157,9 +179,14 @@ public class JsonBuilder {
                         String.format(Locale.ENGLISH, "%.6f", this.mLatitude));
                 jsonObject.put(JsonTags.JSON_TAGS_LOCATION_LONGITUDE.getName(),
                         String.format(Locale.ENGLISH, "%.6f", this.mLongitude));
+
+                if (this.mUtcTime >= 0) {
+                    String dateStr = mDateTimeUtil.toIso8601String(this.mUtcTime);
+                    jsonObject.put(JsonTags.JSON_TAGS_SENSOR_TIMESTAMP.getName(), dateStr);
+                }
             }
         } catch (JSONException e) {
-            Log.e(TAG, "setLocation: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setLocation: JSONObject.put: " + e);
             jsonObject = null;
         }
         return (jsonObject != null);
@@ -181,7 +208,7 @@ public class JsonBuilder {
                 parentObject.put(JsonTags.JSON_TAGS_SENSORS.getName(), jsonArrayObject);
             }
         } catch (JSONException e) {
-            Log.e(TAG, "setSensorHolders: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setSensorHolders: JSONObject.put: " + e);
             jsonArrayObject = null;
         }
         return (jsonArrayObject != null);
@@ -200,7 +227,7 @@ public class JsonBuilder {
             try {
                 parentArray.put(idx, jsonObject);
             } catch (JSONException e) {
-                Log.e(TAG, "setSensorHolder: JSONArray.put: " + e.toString());
+                Log.e(TAG, "setSensorHolder: JSONArray.put: " + e);
                 jsonObject = null;
             }
         }
@@ -226,13 +253,16 @@ public class JsonBuilder {
                 typeName = stringType;
             }
         } else {
+            if (mSensorTypes == null) {
+                mSensorTypes = new SensorTypes();
+            }
             typeName = mSensorTypes.getName(sensor.getType());
         }
 
         try {
             parentObject.put(JsonTags.JSON_TAGS_SENSOR_TYPE.getName(), typeName);
         } catch (JSONException e) {
-            Log.e(TAG, "setSensorType: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setSensorType: JSONObject.put: " + e);
             parentObject = null;
         }
         return (parentObject != null);
@@ -244,7 +274,7 @@ public class JsonBuilder {
         try {
             parentObject.put(JsonTags.JSON_TAGS_SENSOR_NAME.getName(), sensor.getName());
         } catch (JSONException e) {
-            Log.e(TAG, "setSensorName: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setSensorName: JSONObject.put: " + e);
             return false;
         }
         return true;
@@ -260,7 +290,7 @@ public class JsonBuilder {
                 try {
                     parentObject.put(JsonTags.JSON_TAGS_SENSOR_ID.getName(), sensorId);
                 } catch (JSONException e) {
-                    Log.e(TAG, "setSensorId: JSONObject.put: " + e.toString());
+                    Log.e(TAG, "setSensorId: JSONObject.put: " + e);
                     parentObject = null;
                 }
             }
@@ -276,7 +306,7 @@ public class JsonBuilder {
         try {
             parentObject.put(JsonTags.JSON_TAGS_SENSOR_TIMESTAMP.getName(), dateStr);
         } catch (JSONException e) {
-            Log.e(TAG, "setTimeStamp: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setTimeStamp: JSONObject.put: " + e);
             return false;
         }
         return true;
@@ -309,12 +339,16 @@ public class JsonBuilder {
                 dimensions = 1;
                 break;
 
+            case Sensor.TYPE_HEADING:
+                dimensions = 2;
+                break;
+
             case Sensor.TYPE_ACCELEROMETER:
             case Sensor.TYPE_MAGNETIC_FIELD:
             case Sensor.TYPE_GYROSCOPE:
             case Sensor.TYPE_GRAVITY:
             case Sensor.TYPE_LINEAR_ACCELERATION:
-            case Sensor.TYPE_ORIENTATION:
+            case Sensor.TYPE_ORIENTATION: /* Deprecated as of API 15 */
                 dimensions = 3;
                 break;
 
@@ -330,7 +364,15 @@ public class JsonBuilder {
             case Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED:
             case Sensor.TYPE_GYROSCOPE_UNCALIBRATED:
             case Sensor.TYPE_ACCELEROMETER_UNCALIBRATED:
+            case Sensor.TYPE_HEAD_TRACKER:
+            case Sensor.TYPE_ACCELEROMETER_LIMITED_AXES:
+            case Sensor.TYPE_GYROSCOPE_LIMITED_AXES:
                 dimensions = 6;
+                break;
+
+            case Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED:
+            case Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED:
+                dimensions = 9;
                 break;
 
             case Sensor.TYPE_POSE_6DOF:
@@ -361,7 +403,7 @@ public class JsonBuilder {
                         sensorEvent.values[0]);
             }
         } catch (JSONException e) {
-            Log.e(TAG, "setSensorValues: JSONObject.put: " + e.toString());
+            Log.e(TAG, "setSensorValues: JSONObject.put: " + e);
             parentObject = null;
         }
         return (parentObject != null);

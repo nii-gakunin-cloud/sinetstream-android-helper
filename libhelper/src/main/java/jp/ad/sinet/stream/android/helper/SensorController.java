@@ -74,6 +74,8 @@ import jp.ad.sinet.stream.android.helper.constants.IpcType;
 public class SensorController {
     private final static String TAG = SensorController.class.getSimpleName();
 
+    private final static long MIN_INTERVAL_TIMER = 100L; /* 100 milliseconds */
+
     /**
      * Messenger for communicating with the service.
      */
@@ -83,6 +85,8 @@ public class SensorController {
     private final SensorListener mListener;
     private final Context mContext;
     private final int mClientId;
+
+    private ArrayList<Integer> mExcludeSensorTypes = null;
 
     /**
      * Constructs a SensorController instance.
@@ -103,7 +107,7 @@ public class SensorController {
             this.mListener = (SensorListener)context;
             this.mClientId = clientId;
         } else {
-            throw new RuntimeException(context.toString()
+            throw new RuntimeException(context
                     + " must implement SensorListener");
         }
     }
@@ -141,7 +145,7 @@ public class SensorController {
                     Log.w(TAG, "bindSensorService: bindService failed?");
                 }
             } catch (SecurityException e) {
-                mListener.onError(TAG + ": bindSensorService: " + e.toString());
+                mListener.onError(TAG + ": bindSensorService: " + e);
             }
         }
     }
@@ -171,13 +175,21 @@ public class SensorController {
                 msg.replyTo = mMessenger;
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": unbindSensorService: " + e.toString());
+                mListener.onError(TAG + ": unbindSensorService: " + e);
             }
 
             // Detach out existing connection.
             mContext.unbindService(mConnection);
             mIsBound = false;
         }
+    }
+
+    /**
+     * Ask {@link SensorService} to exclude specified sensor types.
+     * @param excludeSensorTypes Array of target sensor types (Sensor.TYPE_XXX)
+     */
+    public void setExcludeSensorTypes(@NonNull ArrayList<Integer> excludeSensorTypes) {
+        mExcludeSensorTypes = excludeSensorTypes;
     }
 
     /**
@@ -207,12 +219,16 @@ public class SensorController {
         if (mIsBound) {
             Message msg = Message.obtain(
                     null, IpcType.MSG_LIST_SENSOR_TYPES, 0, mClientId);
-            /* No bundled data for this message */
+            if (mExcludeSensorTypes != null) {
+                Bundle bundle = new Bundle();
+                bundle.putIntegerArrayList(BundleKeys.BUNDLE_KEY_SENSOR_TYPES, mExcludeSensorTypes);
+                msg.setData(bundle);
+            }
             msg.replyTo = mMessenger;
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -252,7 +268,7 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -291,7 +307,7 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -304,31 +320,31 @@ public class SensorController {
      *
      * <p>
      *     Calling of this method is optional.
-     *     If omitted, default value 10 (seconds) will be used.
+     *     If omitted, default value 1,000 (milliseconds) will be used.
      * </p>
      *
-     * @param seconds interval timer, where {0 < seconds <= Long.MAX_VALUE}
+     * @param milliseconds interval timer
      */
-    public void setIntervalTimer(long seconds) {
+    public void setIntervalTimer(long milliseconds) {
         /*
          * SensorEvent.timestamp is set in nanoseconds.
-         * To prevent overload, we handle interval timer in seconds.
+         * To prevent overload, we handle interval timer with appropriate lower bound.
          */
-        if (seconds <= 0L || (Long.MAX_VALUE / 1000 * 1000) < seconds) {
-            mListener.onError("IntervalTimer(" + seconds + ") out of range");
+        if (milliseconds < MIN_INTERVAL_TIMER) {
+            mListener.onError(TAG + ": IntervalTimer(" + milliseconds + ") too small");
             return;
         }
         if (mIsBound) {
             Message msg = Message.obtain(
                     null, IpcType.MSG_SET_INTERVAL_TIMER, 0, mClientId);
             Bundle bundle = new Bundle();
-            bundle.putLong(BundleKeys.BUNDLE_KEY_INTERVAL_TIMER, seconds);
+            bundle.putLong(BundleKeys.BUNDLE_KEY_INTERVAL_TIMER, milliseconds);
             msg.setData(bundle);
             msg.replyTo = mMessenger;
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -350,11 +366,12 @@ public class SensorController {
      *
      * @param latitude latitude of this device, where {-90.0 <= latitude <= 90.0}
      * @param longitude longitude of this device, where {-180.0 <= longitude <= 180.0}
+     * @param utcTime the UTC time of the location fix, in milliseconds since epoch.
      */
-    public void setLocation(double latitude, double longitude) {
+    public void setLocation(double latitude, double longitude, long utcTime) {
         if ((latitude < -90 || 90.0 < latitude)
         ||  (longitude < -180.0 || 180.0 < longitude)) {
-            mListener.onError("Location{" + latitude +
+            mListener.onError(TAG + ": Location{" + latitude +
                     ", " + longitude + "} out of range");
             return;
         }
@@ -364,12 +381,13 @@ public class SensorController {
             Bundle bundle = new Bundle();
             bundle.putDouble(BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, latitude);
             bundle.putDouble(BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, longitude);
+            bundle.putLong(BundleKeys.BUNDLE_KEY_LOCATION_TIMESTAMP, utcTime);
             msg.setData(bundle);
             msg.replyTo = mMessenger;
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -393,7 +411,23 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
+            }
+        } else {
+            mListener.onError(TAG + ": Service not yet bound");
+        }
+    }
+
+    public void setCellularData(@NonNull Bundle bundle) {
+        if (mIsBound) {
+            Message msg = Message.obtain(
+                    null, IpcType.MSG_CELLULAR_DATA, 0, mClientId);
+            msg.setData(bundle);
+            msg.replyTo = mMessenger;
+            try {
+                mService.send(msg);
+            } catch (RemoteException e) {
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -431,7 +465,7 @@ public class SensorController {
             try {
                 mService.send(msg);
             } catch (RemoteException e) {
-                mListener.onError(TAG + ": Messenger.send: " + e.toString());
+                mListener.onError(TAG + ": Messenger.send: " + e);
             }
         } else {
             mListener.onError(TAG + ": Service not yet bound");
@@ -508,13 +542,14 @@ public class SensorController {
                     if (sensorData != null) {
                         mListener.onSensorDataReceived(sensorData);
                     } else {
-                        Log.w(TAG, "MSG_SENSOR_DATA: Invalid bundle: " + bundle.toString());
+                        Log.w(TAG, "MSG_SENSOR_DATA: Invalid bundle: " + bundle);
                     }
                 } else {
                     Log.w(TAG, "MSG_SENSOR_DATA: No bundle?");
                 }
                 break;
             case IpcType.MSG_SET_INTERVAL_TIMER:
+            case IpcType.MSG_CELLULAR_DATA:
             case IpcType.MSG_SET_LOCATION:
             case IpcType.MSG_RESET_LOCATION:
             case IpcType.MSG_SET_USER_DATA:
@@ -530,7 +565,7 @@ public class SensorController {
                     if (errmsg != null) {
                         mListener.onError(errmsg);
                     } else {
-                        Log.w(TAG, "MSG_ERROR: Invalid bundle: " + bundle.toString());
+                        Log.w(TAG, "MSG_ERROR: Invalid bundle: " + bundle);
                     }
                 } else {
                     Log.w(TAG, "MSG_ERROR: No bundle?");
@@ -568,7 +603,7 @@ public class SensorController {
                 // do anything with it; we can count on soon being
                 // disconnected (an then reconnected if it can be restarted)
                 // so there is no need to do anything here.
-                Log.e(TAG, "ServiceConnection.onServiceConnected: " + e.toString());
+                Log.e(TAG, "ServiceConnection.onServiceConnected: " + e);
                 return;
             }
 

@@ -40,7 +40,7 @@ import jp.ad.sinet.stream.android.helper.constants.SensorTypes;
 import jp.ad.sinet.stream.android.helper.models.SensorHolder;
 
 public class SensorStorage {
-    private final static String TAG = SensorStorage.class.getSimpleName();
+    private final String TAG = SensorStorage.class.getSimpleName();
 
     final SensorTypes mSensorTypes = new SensorTypes();
 
@@ -51,6 +51,10 @@ public class SensorStorage {
 
     public void registerSensor(@NonNull Sensor sensor) {
         mSensorMap.put(sensor.getType(), sensor);
+    }
+
+    public void unregisterSensor(@NonNull Sensor sensor) {
+        mSensorMap.remove(sensor.getType());
     }
 
     @Nullable

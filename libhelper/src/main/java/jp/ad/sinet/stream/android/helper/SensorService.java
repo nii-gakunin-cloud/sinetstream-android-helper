@@ -43,9 +43,12 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.telephony.SignalStrength;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+
+import org.json.JSONObject;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -54,7 +57,9 @@ import java.util.List;
 import jp.ad.sinet.stream.android.helper.constants.BundleKeys;
 import jp.ad.sinet.stream.android.helper.constants.IpcType;
 import jp.ad.sinet.stream.android.helper.models.SensorHolder;
+import jp.ad.sinet.stream.android.helper.provider.CellularStorage;
 import jp.ad.sinet.stream.android.helper.provider.JsonBuilder;
+import jp.ad.sinet.stream.android.helper.provider.JsonBuilderForCellular;
 import jp.ad.sinet.stream.android.helper.provider.LocationStorage;
 import jp.ad.sinet.stream.android.helper.provider.SensorStorage;
 import jp.ad.sinet.stream.android.helper.provider.UserDataStorage;
@@ -73,6 +78,7 @@ public class SensorService extends Service
 
     private SensorManager mSensorManager = null;
     private final SensorStorage mSensorStorage = new SensorStorage();
+    private final CellularStorage mCellularStorage = new CellularStorage();
     private final LocationStorage mLocationStorage = new LocationStorage();
     private final UserDataStorage mUserDataStorage = new UserDataStorage();
 
@@ -80,7 +86,7 @@ public class SensorService extends Service
 
     /* Rate control parameters */
     private long mTimeStamp = 0;
-    private long mInterval = sec2ns(1L);
+    private long mInterval = ms2ns(1000L);
 
     /* Make sure ALL sensor listener gets unregistered on unbind */
     private boolean mSensorListenerActive = false;
@@ -224,12 +230,17 @@ public class SensorService extends Service
             for (int i = 0, n = sensorList.size(); i < n; i++) {
                 Sensor sensor = sensorList.get(i);
 
-                Log.d(TAG, "Register SENSOR" +
-                        "[type(" + sensor.getType() +
-                        "),name(" + sensor.getName() + ")]");
+                String attr = "";
+                attr += "[";
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    attr += "id(" + sensor.getId() + "),";
+                }
+                attr += "type(" + sensor.getType() + "),";
+                attr += "name(" + sensor.getName() + ")";
+                attr += "]";
+                Log.d(TAG, "Register SENSOR" + attr);
 
-                if (android.os.Build.VERSION.SDK_INT
-                        >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     int reportingMode = sensor.getReportingMode();
                     String modeName = "Unknown";
                     switch (reportingMode) {
@@ -385,14 +396,14 @@ public class SensorService extends Service
                 break;
             case IpcType.MSG_SET_INTERVAL_TIMER:
                 if (bundle_req != null) {
-                    long seconds = bundle_req.getLong(
+                    long milliseconds = bundle_req.getLong(
                             BundleKeys.BUNDLE_KEY_INTERVAL_TIMER, -1L);
-                    if (seconds > 0L) {
-                        Log.d(TAG, "Set interval to " + seconds + " (seconds)");
-                        mInterval = sec2ns(seconds);
+                    if (milliseconds > 0L) {
+                        Log.d(TAG, "Set interval timer to " + milliseconds + " (milliseconds)");
+                        mInterval = ms2ns(milliseconds);
                         result_code = 0;
                     } else {
-                        errorReply(msg.replyTo, "Invalid interval value");
+                        errorReply(msg.replyTo, "Invalid interval timer: " + milliseconds);
                     }
                 } else {
                     errorReply(msg.replyTo, "INTERVAL_TIMER: Bundle data is missing?");
@@ -405,22 +416,33 @@ public class SensorService extends Service
                 /* Send back process result */
                 sendToClient(msg.replyTo, msg.what, result_code, null);
                 break;
+            case IpcType.MSG_CELLULAR_DATA:
+                if (bundle_req != null) {
+                    mCellularStorage.setCellularStorage(bundle_req);
+                    result_code = 0;
+                } else {
+                    errorReply(msg.replyTo, "CELLULAR: Bundle data is missing?");
+                    break;
+                }
+
+                /* Send back process result */
+                sendToClient(msg.replyTo, msg.what, result_code, null);
+                break;
             case IpcType.MSG_SET_LOCATION:
                 if (bundle_req != null) {
                     double latitude = bundle_req.getDouble(
                             BundleKeys.BUNDLE_KEY_LOCATION_LATITUDE, Double.NaN);
                     double longitude = bundle_req.getDouble(
                             BundleKeys.BUNDLE_KEY_LOCATION_LONGITUDE, Double.NaN);
+                    long utcTime = bundle_req.getLong(
+                            BundleKeys.BUNDLE_KEY_LOCATION_TIMESTAMP, -1);
                     if (! Double.isNaN(latitude) && !Double.isNaN(longitude)) {
                         Log.d(TAG, "Set location {" + latitude + ", " + longitude + "}");
-                        mLocationStorage.setLocation(latitude, longitude);
+                        mLocationStorage.setLocation(latitude, longitude, utcTime);
                         result_code = 0;
                     }
                 } else {
                     errorReply(msg.replyTo, "LOCATION: Bundle data is missing?");
-                }
-                if (result_code != 0) {
-                    /* ErrorReply has sent; avoid calling sendToClient() again */
                     break;
                 }
 
@@ -462,6 +484,15 @@ public class SensorService extends Service
                 sendToClient(msg.replyTo, msg.what, result_code, null);
                 break;
             case IpcType.MSG_LIST_SENSOR_TYPES:
+                /* User may have denied runtime permissions for some sensor types */
+                if (bundle_req != null) {
+                    ArrayList<Integer> sensorTypes =
+                            bundle_req.getIntegerArrayList(BundleKeys.BUNDLE_KEY_SENSOR_TYPES);
+                    if (sensorTypes != null) {
+                        Log.d(TAG, "Going to EXCLUDE some sensor types");
+                        excludeSensors(msg, sensorTypes);
+                    }
+                }
                 /* Send back available sensor types */
                 ArrayList<Integer> availableSensorTypes =
                         mSensorStorage.getSensorTypes();
@@ -507,6 +538,26 @@ public class SensorService extends Service
         }
     }
 
+    private void excludeSensors(Message msg, ArrayList<Integer> sensorTypes) {
+        if (mSensorListenerActive) {
+            Log.w(TAG, "ExcludeSensors: Invalid calling sequence");
+            return;
+        }
+        for (int i = 0, n = sensorTypes.size(); i < n; i++) {
+            int sensorType = sensorTypes.get(i);
+
+            Sensor sensor = mSensorStorage.lookupSensor(sensorType);
+            if (sensor != null) {
+                Log.d(TAG, "XXX: " + "[" + (i+1) + "/" + n + "]" +
+                        "Going to EXCLUDE: " + sensor.getName());
+
+                mSensorStorage.unregisterSensor(sensor);
+            } else {
+                Log.w(TAG, "Unsupported sensor type: " + sensorType);
+            }
+        }
+    }
+
     private void enableSensors(Message msg, ArrayList<Integer> sensorTypes) {
         for (int i = 0, n = sensorTypes.size(); i < n; i++) {
             int sensorType = sensorTypes.get(i);
@@ -528,7 +579,7 @@ public class SensorService extends Service
                     } catch (IllegalArgumentException e) {
                         errorReply(msg.replyTo, TAG +
                                 ": requestTriggerSensor(" + typeName + "): " +
-                                e.toString());
+                                e);
                         break;
                     }
                 } else {
@@ -564,7 +615,7 @@ public class SensorService extends Service
                         }
                     } catch (IllegalArgumentException e) {
                         Log.w(TAG, "cancelTriggerSensor(" + typeName + "): " +
-                                e.toString());
+                                e);
                     }
                 } else {
                     mSensorManager.unregisterListener(this, sensor);
@@ -684,14 +735,43 @@ public class SensorService extends Service
     };
 
     private void exportSensorValues() {
-        ArrayList<SensorHolder> sensorHolders =
-                mSensorStorage.getSensorHolders();
-
         String publisher = mUserDataStorage.getPublisher(); // "user1@example.com";
         String note = mUserDataStorage.getNote();
         double latitude = mLocationStorage.getLatitude(); // (double) 139.767125;
         double longitude = mLocationStorage.getLongitude(); // (double) 35.681236;
-        JsonBuilder jsonBuilder = new JsonBuilder(publisher, note, latitude, longitude);
+        long utcTime = mLocationStorage.getUtcTime();
+        JsonBuilder jsonBuilder =
+                new JsonBuilder(publisher, note, latitude, longitude, utcTime);
+
+        SignalStrength ss = mCellularStorage.getSignalStrength();
+        if (ss != null) {
+            int networkType = mCellularStorage.getNetworkType();
+            long timestamp = mCellularStorage.getTimestamp();
+            JsonBuilderForCellular jsonBuilder2 = new JsonBuilderForCellular(
+                    new JsonBuilderForCellular.JsonBuilderForCellularListener() {
+                        @Override
+                        public void onJsonObject(@NonNull JSONObject jsonObject) {
+                            jsonBuilder.addExtraCellularData(jsonObject);
+                            exportJsonString(jsonBuilder);
+                        }
+
+                        @Override
+                        public void onError(@NonNull String description) {
+                            Log.e(TAG, description);
+                            exportJsonString(jsonBuilder);
+                        }
+                    });
+
+            jsonBuilder2.build(networkType, ss, timestamp);
+            return;
+        }
+
+        exportJsonString(jsonBuilder);
+    }
+
+    private void exportJsonString(@NonNull JsonBuilder jsonBuilder) {
+        ArrayList<SensorHolder> sensorHolders =
+                mSensorStorage.getSensorHolders();
 
         String jsonString = jsonBuilder.buildJsonString(sensorHolders);
         if (jsonString != null) {
@@ -725,7 +805,7 @@ public class SensorService extends Service
             }
             client.send(msg);
         } catch (RemoteException e) {
-            Log.e(TAG, "Messenger.send: " + e.toString());
+            Log.e(TAG, "Messenger.send: " + e);
         }
     }
 
@@ -735,8 +815,8 @@ public class SensorService extends Service
         sendToClient(replyTo, IpcType.MSG_ERROR, -1, bundle);
     }
 
-    private long sec2ns(long seconds) {
-        /* Seconds -> Nanoseconds */
-        return seconds * 1000 * 1000 * 1000;
+    private long ms2ns(long milliseconds) {
+        /* Milliseconds -> Nanoseconds */
+        return milliseconds * 1000 * 1000;
     }
 }

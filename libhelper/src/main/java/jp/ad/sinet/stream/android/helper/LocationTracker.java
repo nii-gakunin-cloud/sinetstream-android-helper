@@ -22,13 +22,12 @@
 package jp.ad.sinet.stream.android.helper;
 
 import android.Manifest;
-import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
@@ -53,10 +52,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import java.lang.ref.WeakReference;
-import java.util.Map;
 
 import jp.ad.sinet.stream.android.helper.constants.BundleKeys;
 import jp.ad.sinet.stream.android.helper.constants.IpcType;
+import jp.ad.sinet.stream.android.helper.constants.LocationProviderType;
+import jp.ad.sinet.stream.android.helper.util.AppInfo;
 import jp.ad.sinet.stream.android.helper.util.DialogUtil;
 
 public class LocationTracker {
@@ -68,42 +68,32 @@ public class LocationTracker {
     private Messenger mService = null;
 
     private boolean mIsBound = false;
-    private final Activity mActivity;
+    private final AppCompatActivity mActivity;
     private final LocationTrackerListener mListener;
     private final Context mContext;
+    private final AppInfo mAppInfo;
     private final int mClientId;
 
     private final ActivityResultLauncher<Intent> mActivityResultLauncher;
-    private final ActivityResultLauncher<String[]> mRequestPermissionLauncher;
 
-    /* Performance optimization by converting String symbol to corresponding enum */
-    private enum LocationServiceType {
-        GPS, FUSED
-    }
-    private final LocationServiceType mLocationServiceType;
+    private final LocationProviderType mLocationProviderType;
 
     public LocationTracker(
             @NonNull AppCompatActivity activity,
-            @NonNull final String locationProviderName,
+            @NonNull LocationProviderType locationProviderType,
             int clientId) {
-        mActivity = activity;
         if (activity instanceof LocationTrackerListener) {
             mContext = activity;
             mListener = (LocationTrackerListener) activity;
-            mClientId = clientId;
         } else {
-            throw new RuntimeException(activity.toString()
+            throw new RuntimeException(activity
                     + " must implement LocationTrackerListener");
         }
 
-        if (locationProviderName.equals(LocationManager.GPS_PROVIDER)) {
-            mLocationServiceType = LocationServiceType.GPS;
-        } else if (locationProviderName.equals(LocationManager.FUSED_PROVIDER)) {
-            mLocationServiceType = LocationServiceType.FUSED;
-        } else {
-            throw new IllegalArgumentException(
-                    "Unknown LocationProvider(" + locationProviderName + ")");
-        }
+        mActivity = activity;
+        mAppInfo = new AppInfo(activity);
+        mLocationProviderType = locationProviderType;
+        mClientId = clientId;
 
         /*
          * https://developer.android.com/training/basics/intents/result#register
@@ -118,42 +108,18 @@ public class LocationTracker {
                     }
                 }
         );
-
-        /*
-         * https://developer.android.com/training/permissions/requesting#allow-system-manage-request-code
-         */
-        mRequestPermissionLauncher = activity.registerForActivityResult(
-                new ActivityResultContracts.RequestMultiplePermissions(),
-                new ActivityResultCallback<>() {
-                    @Override
-                    public void onActivityResult(Map<String, Boolean> map) {
-                        Log.d(TAG, "RequestPermissionLauncher.onActivityResult: map=" + map);
-                        processPermissionResults(map);
-                    }
-                }
-        );
     }
 
     /**
-     * Check system settings before starting the location service.
+     * Starts the location service.
      * <p>
-     *     This method triggers the series of checks to see if current settings
-     *     are adequate for using the LocationService.
-     *
-     *     If everything goes fine, {@link GpsService} or {@link FlpService}
-     *     will be automatically started followed by a notification
-     *     {@link LocationTrackerListener#onLocationSettingsChecked(boolean)}
-     *     with {@code isReady} argument set to {@code true}.
-     *     Otherwise, the same notification will be delivered with {@code isReady}
-     *     argument set to {@code false}.
+     *     Here assumes that all required permission checks (both for system
+     *     level and per-application level settings) have passed via
+     *     {@link PermissionHandler}.
      * </p>
      */
     public void start() {
-        if (checkDeviceLocationSettings(true)) {
-            checkRuntimePermissions();
-        } else {
-            mListener.onLocationSettingsChecked(false);
-        }
+        startLocationService();
     }
 
     /**
@@ -163,9 +129,43 @@ public class LocationTracker {
         stopLocationService();
     }
 
-    private boolean checkDeviceLocationSettings(boolean promptIfDisabled) {
-        Log.d(TAG, "checkDeviceLocationSettings: promptIfDisabled=" + promptIfDisabled);
+    private void launchSystemSettings() {
+        if (mActivity.isFinishing() || mActivity.isDestroyed()) {
+            Log.d(TAG, "Calling Activity is now finishing. Do nothing here");
+            return;
+        }
+        Log.d(TAG, "Going to launch System Settings");
 
+        /*
+         * https://developer.android.com/training/basics/intents/result#launch
+         */
+        Intent settingsIntent =
+                new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+        try {
+            Log.d(TAG, "Going to launch ActivityResultLauncher");
+            mActivityResultLauncher.launch(settingsIntent);
+        } catch (ActivityNotFoundException e) {
+            mListener.onError(TAG + ": ActivityResultLauncher.launch: " + e.getMessage());
+        }
+    }
+
+    private void processActivityResult(@NonNull ActivityResult result) {
+        Log.d(TAG, "processActivityResult");
+        /*
+         * It seems the invoked sub-Activity (System Settings)
+         * does not call Activity.setResult() before finish.
+         * That is, resultCode is always RESULT_CANCELED.
+         *
+        if (result.getResultCode() == RESULT_OK) {
+            locationStart();
+        }
+         */
+        if (verifyDeviceLocationSettings()) {
+            checkRuntimePermissions();
+        }
+    }
+
+    private boolean verifyDeviceLocationSettings() {
         LocationManager locationManager =
                 (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null) {
@@ -176,7 +176,7 @@ public class LocationTracker {
         boolean isLocationEnabled;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             isLocationEnabled = locationManager.isLocationEnabled();
-            Log.w(TAG, "LocationManager.isLocationEnabled: " + isLocationEnabled);
+            Log.d(TAG, "LocationManager.isLocationEnabled: " + isLocationEnabled);
         } else {
             int mode = Settings.Secure.getInt(
                     mContext.getContentResolver(),
@@ -190,7 +190,7 @@ public class LocationTracker {
             Log.d(TAG, "Settings: Device location is ENABLED");
 
             /* Global location settings seems OK; how about location provider? */
-            switch (mLocationServiceType) {
+            switch (mLocationProviderType) {
                 case GPS:
                     if (locationManager.
                             isProviderEnabled(LocationManager.GPS_PROVIDER)) {
@@ -202,7 +202,7 @@ public class LocationTracker {
                          */
                         DialogUtil dialogUtil = new DialogUtil(mContext);
                         dialogUtil.showModalDialog(
-                                getApplicationName(),
+                                mAppInfo.getApplicationName(),
                                 "To enable GPS, set location mode either \"High accuracy\" or \"Device only\".",
                                 new DialogInterface.OnClickListener() {
                                     @Override
@@ -218,13 +218,10 @@ public class LocationTracker {
                             isProviderEnabled(LocationManager.FUSED_PROVIDER)) {
                         Log.d(TAG, "LocationManager(fused): enabled");
                     } else {
-                        /*
-                         * Strangely enough, it looks like FUSED_PROVIDER works
-                         * even if the above test fails.
-                         *
-                        mListener.onError("LocationManager: Sorry, FLP is not available");
-                         */
-                        Log.w(TAG, "LocationManager(fused) is disabled, but we go ahead");
+                        mListener.onError("LocationManager: \n" +
+                                "Sorry, FLP is not available on this device. " +
+                                "Please use GPS instead");
+                        return false;
                     }
                     break;
                 default:
@@ -233,62 +230,12 @@ public class LocationTracker {
             }
         } else {
             Log.w(TAG, "Settings: Device location is DISABLED");
-
-            if (! promptIfDisabled) {
-                /* We once reached here. Nothing to do anymore */
-                mListener.onError("Device location is NOT set");
-                return false;
-            }
-
-            DialogUtil dialogUtil = new DialogUtil(mContext);
-            dialogUtil.showModalDialog(
-                    getApplicationName(),
-                    "Please turn on device location.",
-                    new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            launchSystemSettings();
-                        }
-                    });
+            //mListener.onError("Device location is NOT set");
             return false;
         }
 
         /* It seems all OK, so far. */
         return true;
-    }
-
-    @NonNull
-    private String getApplicationName() {
-        ApplicationInfo applicationInfo = mContext.getApplicationInfo();
-        return applicationInfo.loadLabel(mContext.getPackageManager()).toString();
-    }
-
-    private void launchSystemSettings() {
-        Log.d(TAG, "Going to launch System Settings");
-
-        /*
-         * https://developer.android.com/training/basics/intents/result#launch
-         */
-        Intent settingsIntent =
-                new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-        mActivityResultLauncher.launch(settingsIntent);
-    }
-
-    private void processActivityResult(@NonNull ActivityResult result) {
-        /*
-         * It seems the invoked sub-Activity (System Settings)
-         * does not call Activity.setResult() before finish.
-         * That is, resultCode is always RESULT_CANCELED.
-         *
-        if (result.getResultCode() == RESULT_OK) {
-            locationStart();
-        }
-         */
-        if (checkDeviceLocationSettings(false)) {
-            checkRuntimePermissions();
-        } else {
-            Log.d(TAG, "Going to start dialog session");
-        }
     }
 
     private void checkRuntimePermissions() {
@@ -302,72 +249,18 @@ public class LocationTracker {
         if (ActivityCompat.checkSelfPermission(mContext,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
-            Log.d(TAG, "ACCESS_FINE_LOCATION(NG)");
-
-            if (ActivityCompat.shouldShowRequestPermissionRationale(
-                    mActivity, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                Log.d(TAG, "Should Show Request Permission Rationale");
-
-                DialogUtil dialogUtil = new DialogUtil(mContext);
-                dialogUtil.showModalDialog(
-                        getApplicationName(),
-                        "Please allow app-level permissions (Location).",
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                requestRuntimePermissions();
-                            }
-                        });
-            } else {
-                /* Explanation to the user is NOT necessary */
-                requestRuntimePermissions();
-            }
-            return;
+            mListener.onError(TAG + ": App-level permission " +
+                    "\"ACCESS_FINE_LOCATION\" has lost?");
         } else {
-            Log.d(TAG, "ACCESS_FINE_LOCATION(OK)");
-            mListener.onLocationSettingsChecked(true);
-        }
-
-        /* Permissions are already available, request location updates */
-        if (mService != null) {
-            Log.d(TAG, "LocationService has already bound");
+            Log.d(TAG, "OK, location resolution has upgraded");
             reportLocationResolutionCorrected();
-        } else {
-            startLocationService();
-        }
-    }
-
-    private void requestRuntimePermissions() {
-        Log.d(TAG, "Going to request runtime permissions");
-
-        mRequestPermissionLauncher.launch(new String[]{
-                /* We can request multiple permissions all at once */
-                Manifest.permission.ACCESS_FINE_LOCATION,
-        });
-    }
-
-    private void processPermissionResults(@NonNull Map<String, Boolean> map) {
-        Boolean isGranted;
-        isGranted = map.get(Manifest.permission.ACCESS_FINE_LOCATION);
-        if (isGranted != null) {
-            if (isGranted) {
-                Log.d(TAG, "onRequestPermissionResult: ACCESS_FINE_LOCATION: GRANTED");
-                startLocationService();
-                mListener.onLocationSettingsChecked(true);
-            } else {
-                Log.d(TAG, "onRequestPermissionResult: ACCESS_FINE_LOCATION: DENIED");
-                stopLocationService();
-                mListener.onError("Permission denied by user");
-            }
-        } else {
-            Log.w(TAG, "onRequestPermissionResult: ACCESS_FINE_LOCATION: Not found?");
         }
     }
 
     @Nullable
     private Intent getLocationServiceIntent() {
         Intent intent = null;
-        switch (mLocationServiceType) {
+        switch (mLocationProviderType) {
             case GPS:
                 intent = new Intent(mContext, GpsService.class);
                 break;
@@ -495,11 +388,11 @@ public class LocationTracker {
          * We need to use an Executor or specify the Looper explicitly.
          */
         IncomingHandler(
-                @NonNull Looper looper, @NonNull LocationTracker LocationTracker) {
+                @NonNull Looper looper, @NonNull LocationTracker locationTracker) {
             super(looper);
 
             /* Keep the enclosing class object as weak-reference to prevent leaks */
-            weakReference = new WeakReference<>(LocationTracker);
+            weakReference = new WeakReference<>(locationTracker);
         }
 
         /**
@@ -573,7 +466,7 @@ public class LocationTracker {
                 }
                 DialogUtil dialogUtil = new DialogUtil(mContext);
                 dialogUtil.showModalDialog(
-                        getApplicationName(),
+                        mAppInfo.getApplicationName(),
                         dialogMessage,
                         new DialogInterface.OnClickListener() {
                             @Override
@@ -588,7 +481,7 @@ public class LocationTracker {
                     if (errmsg != null) {
                         mListener.onError(errmsg);
                     } else {
-                        Log.w(TAG, "MSG_ERROR: Invalid bundle: " + bundle.toString());
+                        Log.w(TAG, "MSG_ERROR: Invalid bundle: " + bundle);
                     }
                 } else {
                     Log.w(TAG, "MSG_ERROR: No bundle?");
@@ -660,7 +553,7 @@ public class LocationTracker {
     }
 
     private void reportLocationResolutionCorrected() {
-        Log.d(TAG, "requestLocationStartUpdate");
+        Log.d(TAG, "reportLocationResolutionCorrected");
         sendMessage(IpcType.MSG_LOCATION_RESOLUTION_CORRECTED);
     }
 

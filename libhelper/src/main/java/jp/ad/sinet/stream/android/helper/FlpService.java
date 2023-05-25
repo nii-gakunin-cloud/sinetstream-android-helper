@@ -55,6 +55,7 @@ import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.LocationSettingsStates;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
+import com.google.android.gms.location.Priority;
 import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.tasks.OnCanceledListener;
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -139,7 +140,7 @@ public class FlpService extends Service implements Executor {
                 (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         if (notificationManager != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                String name = getString(R.string.service_name_gps);
+                String name = getString(R.string.service_name_flp);
                 int importance = NotificationManager.IMPORTANCE_LOW;
 
                 NotificationChannel notificationChannel =
@@ -268,7 +269,19 @@ public class FlpService extends Service implements Executor {
                         case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
                             Log.i(TAG, "Location settings are not satisfied. Attempting to upgrade " +
                                     "location settings ");
-                            /* TODO XXX
+                            /*
+                             * The standard way to handle this case should be to call
+                             * "ResolvableApiException.startResolutionForResult()"
+                             * and check its result via "Activity.onActivityResult()".
+                             * as shown below.
+                             *
+                             * Our challenge is to keep complex work within this library
+                             * without bothering user applications.
+                             * See "reportLocationResolutionRequired()" as our solution.
+                             *
+                             * Google Play Service: SettingsClient
+                             * https://developers.google.com/android/reference/com/google/android/gms/location/SettingsClient
+                             *
                             try {
                                 // Show the dialog by calling startResolutionForResult(), and check the
                                 // result in onActivityResult().
@@ -309,24 +322,6 @@ public class FlpService extends Service implements Executor {
             @Override
             public void onCanceled() {
                 Log.w(TAG, "LocationSettingsResponse.onCanceled");
-            }
-        });
-
-        task1.addOnCompleteListener(this, new OnCompleteListener<>() {
-            @Override
-            public void onComplete(@NonNull Task<LocationSettingsResponse> task2) {
-                Log.d(TAG, "LocationSettingsResponse.onComplete: " +
-                        (task2.isSuccessful() ? "SUCCESS" : "FAILURE"));
-                /*
-                 * There is no guarantee that onComplete() is called after
-                 * onSuccess()/onFailure()/onCanceled().
-                 *
-                if (mClients.size() > 0) {
-                    reportLocationProviderStatus(null);
-                } else {
-                    Log.d(TAG, "No clients for now");
-                }
-                */
             }
         });
     }
@@ -378,11 +373,19 @@ public class FlpService extends Service implements Executor {
     }
 
     private void createLocationRequest() {
-        mLocationRequest = LocationRequest.create();
-        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setWaitForAccurateLocation(true);
+        /*
+         * From the release of play-services-location (v21.0.0),
+         * LocationRequest.create() has deprecated.
+         * We should use LocationRequest.Builder instead.
+         *
+         * https://developers.google.com/android/guides/releases#october_13_2022
+         */
+        LocationRequest.Builder builder =
+                new LocationRequest.Builder(UPDATE_INTERVAL_IN_MILLISECONDS);
+        builder.setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
+        builder.setPriority(Priority.PRIORITY_HIGH_ACCURACY);
+        builder.setWaitForAccurateLocation(true);
+        mLocationRequest = builder.build();
     }
 
     private void createLocationCallback() {
@@ -392,7 +395,12 @@ public class FlpService extends Service implements Executor {
                 super.onLocationResult(locationResult);
                 Log.d(TAG, "onLocationResult: " + locationResult);
 
-                reportNewLocation(locationResult.getLastLocation());
+                Location lastLocation = locationResult.getLastLocation();
+                if (lastLocation != null) {
+                    reportNewLocation(lastLocation);
+                } else {
+                    Log.d(TAG, "Last location unavailable...");
+                }
             }
 
             @Override
@@ -456,24 +464,26 @@ public class FlpService extends Service implements Executor {
         Log.d(TAG, s);
     }
 
+    @Nullable
     private String getLocationSources() {
-        ArrayList<String> arrayList = new ArrayList<>();
-        String s = LocationManager.FUSED_PROVIDER.toUpperCase(Locale.US);
-
-        LocationSettingsStates states = mLocationSettingsStates;
-        if (states != null && states.isLocationUsable()) {
-            if (states.isGpsUsable()) {
-                arrayList.add("gps");
+        String s = null;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            ArrayList<String> arrayList = new ArrayList<>();
+            s = LocationManager.FUSED_PROVIDER.toUpperCase(Locale.US);
+            LocationSettingsStates states = mLocationSettingsStates;
+            if (states != null && states.isLocationUsable()) {
+                if (states.isGpsUsable()) {
+                    arrayList.add("gps");
+                }
+                if (states.isNetworkLocationUsable()) {
+                    arrayList.add("net");
+                }
+                if (states.isBleUsable()) {
+                    arrayList.add("ble");
+                }
             }
-            if (states.isNetworkLocationUsable()) {
-                arrayList.add("net");
-            }
-            if (states.isBleUsable()) {
-                arrayList.add("ble");
-            }
+            s += arrayList.toString();
         }
-        s += arrayList.toString();
-
         return s;
     }
 
@@ -506,25 +516,6 @@ public class FlpService extends Service implements Executor {
             } catch (IllegalArgumentException | SecurityException e) {
                 Log.e(TAG, "LocationManager.getCurrentLocation: " + e);
                 String errmsg = TAG + ": " + "getCurrentLocation: " + e.getMessage();
-                errorReply(null, errmsg);
-            }
-        } else {
-            Log.d(TAG, "Going to call getLastKnownLocation");
-            try {
-                Location location = locationManager.
-                        getLastKnownLocation(LocationManager.FUSED_PROVIDER);
-                if (location != null) {
-                    if (mClients.size() > 0) {
-                        reportNewLocation(location);
-                    } else {
-                        Log.d(TAG, "No clients for now");
-                    }
-                } else {
-                    Log.d(TAG, "LastKnownLocation is NOT available");
-                }
-            } catch (IllegalArgumentException | SecurityException e) {
-                Log.e(TAG, "LocationManager.getLastKnownLocation: " + e);
-                String errmsg = TAG + ": " + "getLastKnownLocation: " + e.getMessage();
                 errorReply(null, errmsg);
             }
         }
@@ -698,13 +689,19 @@ public class FlpService extends Service implements Executor {
         Bundle bundle = new Bundle();
 
         String s = getLocationSources();
-        Log.d(TAG, "reportLocationProviderStatus: " + s);
-        bundle.putString(BundleKeys.BUNDLE_KEY_LOCATION_SOURCES, s);
+        if (s != null) {
+            Log.d(TAG, "reportLocationProviderStatus: " + s);
+            bundle.putString(BundleKeys.BUNDLE_KEY_LOCATION_SOURCES, s);
 
-        bundle.putBoolean(BundleKeys.BUNDLE_KEY_LOCATION_PROVIDER_STATUS,
-                mIsLocationAvailable);
-        Log.d(TAG, "TX: LOCATION_PROVIDER_STATUS");
-        sendToClient(client, IpcType.MSG_LOCATION_PROVIDER_STATUS, 0, bundle);
+            bundle.putBoolean(BundleKeys.BUNDLE_KEY_LOCATION_PROVIDER_STATUS,
+                    mIsLocationAvailable);
+            Log.d(TAG, "TX: LOCATION_PROVIDER_STATUS");
+            sendToClient(client, IpcType.MSG_LOCATION_PROVIDER_STATUS, 0, bundle);
+        } else {
+            errorReply(client,
+                    "Too old Android OS(" + Build.VERSION.SDK_INT + "): " +
+                            "Cannot get location provider status");
+        }
     }
 
     private void reportLocationSettingsError(@Nullable Messenger client) {

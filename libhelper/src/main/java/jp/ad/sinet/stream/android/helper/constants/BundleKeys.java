@@ -25,6 +25,7 @@ public class BundleKeys {
     public final static String BUNDLE_KEY_INTERVAL_TIMER = "bundle_key_interval_timer";
     public final static String BUNDLE_KEY_LOCATION_LATITUDE = "bundle_key_location_latitude";
     public final static String BUNDLE_KEY_LOCATION_LONGITUDE = "bundle_key_location_longitude";
+    public final static String BUNDLE_KEY_LOCATION_TIMESTAMP = "bundle_key_location_timestamp";
     public final static String BUNDLE_KEY_USERINFO_PUBLISHER = "bundle_key_userinfo_publisher";
     public final static String BUNDLE_KEY_USERINFO_NOTE = "bundle_key_userinfo_note";
     public final static String BUNDLE_KEY_SENSOR_TYPES = "bundle_key_sensor_types";
@@ -34,4 +35,7 @@ public class BundleKeys {
     public final static String BUNDLE_KEY_LOCATION_PROVIDER_STATUS = "bundle_key_location_provider_status";
     public final static String BUNDLE_KEY_LOCATION_PARCELABLE = "bundle_key_location_parcelable";
     public final static String BUNDLE_KEY_LOCATION_SOURCES = "bundle_key_location_sources";
+    public final static String BUNDLE_KEY_CELLULAR_NETWORK_TYPE = "bundle_key_cellular_network_type";
+    public final static String BUNDLE_KEY_CELLULAR_NETWORK_OPERATOR = "bundle_key_cellular_network_operator";
+    public final static String BUNDLE_KEY_CELLULAR_PARCELABLE = "bundle_key_cellular_parcelable";
 }

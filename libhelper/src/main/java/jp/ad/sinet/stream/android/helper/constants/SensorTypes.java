@@ -42,7 +42,7 @@ public class SensorTypes {
         /* type=2 */
         mNameMap.put(Sensor.TYPE_MAGNETIC_FIELD, "magnetic_field");
         /* type=3 */
-        mNameMap.put(Sensor.TYPE_ORIENTATION, "orientation");
+        mNameMap.put(Sensor.TYPE_ORIENTATION, "orientation"); /* Deprecated as of API 15 */
         /* type=4 */
         mNameMap.put(Sensor.TYPE_GYROSCOPE, "gyroscope");
         /* type=5 */
@@ -50,7 +50,7 @@ public class SensorTypes {
         /* type=6 */
         mNameMap.put(Sensor.TYPE_PRESSURE, "pressure");
         /* type=7 */
-        mNameMap.put(Sensor.TYPE_TEMPERATURE, "temperature");
+        /* mNameMap.put(Sensor.TYPE_TEMPERATURE, "temperature"); *//* Deprecated as of API 15 */
         /* type=8 */
         mNameMap.put(Sensor.TYPE_PROXIMITY, "proximity");
         /* type=9 */
@@ -77,37 +77,54 @@ public class SensorTypes {
         mNameMap.put(Sensor.TYPE_STEP_COUNTER, "step_counter");
         /* type=20 */
         mNameMap.put(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, "geomagnetic_rotation_vector");
-        /* type=21 */
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            /* type=21 */
             mNameMap.put(Sensor.TYPE_HEART_RATE, "heart_rate");
         }
-        /* type=28 */
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            /* type=28 */
             mNameMap.put(Sensor.TYPE_POSE_6DOF, "pose_6dof");
-        }
-        /* type=29 */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            /* type=29 */
             mNameMap.put(Sensor.TYPE_STATIONARY_DETECT, "stationary_detect");
-        }
-        /* type=30 */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            /* type=30 */
             mNameMap.put(Sensor.TYPE_MOTION_DETECT, "motion_detect");
-        }
-        /* type=31 */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            /* type=31 */
             mNameMap.put(Sensor.TYPE_HEART_BEAT, "heart_beat");
         }
-        /* type=34 */
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mNameMap.put(Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT, "low_latency_offbody_detect");
+            /* type=34 */
+            mNameMap.put(Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT,
+                    "low_latency_offbody_detect");
+            /* type=35 */
+            mNameMap.put(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED,
+                    "accelerometer_uncalibrated");
         }
-        /* type=35 */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mNameMap.put(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, "accelerometer_uncalibrated");
-        }
-        /* type=36 */
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            /* type=36 */
             mNameMap.put(Sensor.TYPE_HINGE_ANGLE, "hinge_angle");
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            /* type=37 */
+            mNameMap.put(Sensor.TYPE_HEAD_TRACKER, "head_tracker");
+            /* type=38 */
+            mNameMap.put(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES,
+                    "accelerometer_limited_axes");
+            /* type=39 */
+            mNameMap.put(Sensor.TYPE_GYROSCOPE_LIMITED_AXES,
+                    "gyroscope_limited_axes");
+            /* type=40 */
+            mNameMap.put(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
+                    "accelerometer_limited_axes_uncalibrated");
+            /* type=41 */
+            mNameMap.put(Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
+                    "gyroscope_limited_axes_uncalibrated");
+            /* type=42 */
+            mNameMap.put(Sensor.TYPE_HEADING, "heading");
         }
     }
 

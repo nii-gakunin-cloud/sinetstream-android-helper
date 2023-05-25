@@ -63,7 +63,7 @@ public interface LocationTrackerListener {
 
     /**
      * Called on any error occasions.
-     * @param errmsg Error description message
+     * @param description Error description message
      */
-    void onError(@NonNull String errmsg);
+    void onError(@NonNull String description);
 }

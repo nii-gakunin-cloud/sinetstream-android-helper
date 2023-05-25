@@ -270,10 +270,22 @@ public class GpsService extends Service {
 
         @Override
         public void onLocationChanged(@NonNull List<Location> locations) {
+            /*
+             * Location change event has delivered in batch.
+             * The list of locations is sorted in ascending order.
+             */
             for (int i = 0, n = locations.size(); i < n; i++) {
                 Location location = locations.get(i);
                 Log.d(TAG, "Location[" + (i+1) + "/" + n + "]: " + location.toString());
             }
+
+            Location latestLocation;
+            if (locations.size() > 1) {
+                latestLocation = locations.get(locations.size() - 1);
+            } else {
+                latestLocation = locations.get(0);
+            }
+            onLocationChanged(latestLocation);
         }
 
         @Override
