@@ -10,7 +10,7 @@ https://keepachangelog.com/
 ### Security
 --->
 
-## [v1.8.0] - 2023-05-XX
+## [v1.8.0] - 2023-05-26
 
 ### Added
 
