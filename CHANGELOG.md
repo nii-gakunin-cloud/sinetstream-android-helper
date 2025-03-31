@@ -10,6 +10,16 @@ https://keepachangelog.com/
 ### Security
 --->
 
+## [v1.9.2] - 2025-03-31
+
+### Changed
+
+- Update build environ
+    - Android Studio Meerkat (Gradle 8.13, AGP 8.9.1)
+    - Java 17
+    - Google Play Location Services 21.3.0
+
+
 ## [v1.8.0] - 2023-05-26
 
 ### Added
